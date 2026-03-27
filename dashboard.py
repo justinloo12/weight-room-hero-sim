@@ -96,6 +96,13 @@ BOOK_NAMES = {
     "williamhill_us": "William Hill",
     "caesars":        "Caesars",
     "fanduel":        "FanDuel",
+    "fanatics":       "Fanatics",
+    "espnbet":        "ESPN BET",
+    "betparx":        "betPARX",
+    "ballybet":       "Bally Bet",
+    "hardrockbet":    "Hard Rock Bet",
+    "fliff":          "Fliff",
+    "rebet":          "ReBet",
     "pointsbet":      "PointsBet",
     "betus":          "BetUS",
     "mybookieag":     "MyBookie",
@@ -111,8 +118,11 @@ def implied_to_american(implied_pct):
         return -round(p / (1 - p) * 100)
     return round((1 - p) / p * 100)
  
-BOOK_PRIORITY = ["draftkings","betmgm","betrivers","betonlineag",
-                 "williamhill_us","caesars","pointsbet","betus","mybookieag"]
+BOOK_PRIORITY = [
+    "draftkings", "fanduel", "betmgm", "williamhill_us", "caesars",
+    "espnbet", "hardrockbet", "betparx", "ballybet", "betrivers",
+    "betonlineag", "fliff", "fanatics", "betus", "mybookieag", "bovada"
+]
  
 def book_rank(k):
     try:    return BOOK_PRIORITY.index(k)
@@ -626,20 +636,22 @@ def get_roster(team_id):
  
 # ── Odds ───────────────────────────────────────────────────────
 def fetch_odds():
-    """Fetch HR props from all books — pregame only, median consensus.
- 
+    """Fetch live 0.5+ HR props, preferring DraftKings when available.
+
     Strategy:
       1. Skip any game whose commence_time is already in the past (no live/stale odds)
-      2. Collect every book's line into raw_all[canonical_key][book_key]
-      3. Resolve each player's line using the MEDIAN implied probability across
-         all books — this automatically eliminates outlier lines like +4000 from
-         a single soft book while the sharp market sits at +350.
+      2. Pull props across US regions to maximize bookmaker coverage
+      3. Keep one 0.5+ HR price per player per book
+      4. Resolve each player to DraftKings if posted, otherwise the highest-priority
+         live sportsbook in BOOK_PRIORITY.
     """
-    print("Fetching HR odds from all sportsbooks (pregame only)...")
+    print("Fetching HR odds from live sportsbooks...")
     now_utc = datetime.now(timezone.utc)
-    # raw_all[canonical_key] = {book_key: implied_pct}
     raw_all  = {}   # {ckey: {book_key: {"player", "book_odds", "book_implied", "book"}}}
- 
+    seen_books = set()
+    books_with_hr_market = set()
+    draftkings_seen = False
+
     try:
         ev_resp = requests.get(
             f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events"
@@ -675,7 +687,7 @@ def fetch_odds():
  
             pr = requests.get(
                 f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events/{eid}/odds"
-                f"?apiKey={ODDS_API_KEY}&regions=us&markets=batter_home_runs"
+                f"?apiKey={ODDS_API_KEY}&regions=us,us2&markets=batter_home_runs"
                 f"&oddsFormat=american", timeout=15
             )
             if pr.status_code == 429:
@@ -685,17 +697,26 @@ def fetch_odds():
                 continue
             if i == 0:
                 print(f"  Requests remaining: {pr.headers.get('x-requests-remaining','?')}")
- 
+
             for bm in pr.json().get("bookmakers", []):
                 book_key = bm.get("key", "")
-                # DraftKings only — sharpest lines, most reliable HR props
-                if book_key != "draftkings":
+                if not book_key:
                     continue
+                seen_books.add(book_key)
                 for market in bm.get("markets", []):
                     if market.get("key") != "batter_home_runs":
                         continue
+                    books_with_hr_market.add(book_key)
+                    if book_key == "draftkings":
+                        draftkings_seen = True
                     for outcome in market.get("outcomes", []):
-                        if str(outcome.get("name","")).lower() in ["no","under"]:
+                        outcome_name = str(outcome.get("name","")).strip().lower()
+                        point = outcome.get("point")
+                        if outcome_name in ["no", "under"]:
+                            continue
+                        if outcome_name not in ["yes", "over"] and outcome.get("description"):
+                            continue
+                        if point not in (None, 0.5):
                             continue
                         player = outcome.get("description") or outcome.get("name","")
                         price  = outcome.get("price")
@@ -711,26 +732,42 @@ def fetch_odds():
                             if ckey not in raw_all:
                                 raw_all[ckey] = {}
                             existing = raw_all[ckey].get(book_key)
-                            if not existing or odds_val > existing["book_odds"]:
+                            if not existing or abs((point or 0.5) - 0.5) < 1e-9:
                                 raw_all[ckey][book_key] = {
                                     "player":       player.strip(),
                                     "book_odds":    odds_val,
                                     "book_implied": round(implied, 2),
-                                    "book":         "draftkings",
+                                    "book":         book_key,
                                 }
                         except:
                             pass
     except Exception as e:
         print(f"  Odds error: {e}")
- 
-    # ── Resolve: DraftKings only — one entry per player ───────
+
+    # ── Resolve one line per player: DraftKings first, then best live fallback ──
     results = {}
     for ckey, books in raw_all.items():
-        dk = books.get("draftkings")
-        if dk:
-            results[ckey] = {**dk, "n_books": 1}
- 
-    print(f"  {len(results)} HR props from DraftKings" if results else "  No DraftKings HR props posted yet.")
+        chosen = None
+        for preferred_book in BOOK_PRIORITY:
+            if preferred_book in books:
+                chosen = books[preferred_book]
+                break
+        if chosen is None and books:
+            chosen = next(iter(books.values()))
+        if chosen:
+            results[ckey] = {**chosen, "n_books": len(books)}
+
+    if draftkings_seen:
+        dk_count = sum(1 for r in results.values() if r.get("book") == "draftkings")
+        print(f"  {dk_count} DraftKings HR props selected from {len(results)} total live props")
+    elif books_with_hr_market:
+        book_list = ", ".join(BOOK_NAMES.get(k, k) for k in sorted(books_with_hr_market, key=book_rank))
+        print(f"  DraftKings HR props not present in API response today; using live fallback books: {book_list}")
+        print(f"  {len(results)} total live HR props selected")
+    elif seen_books:
+        print("  No batter_home_runs market returned by the API for today's MLB events.")
+    else:
+        print("  No sportsbook data returned for today's MLB events.")
     return results
  
 # ── Schedule + pitcher hand ────────────────────────────────────
@@ -959,7 +996,7 @@ def generate_html(all_preds, games):
         pitcher_in_model = len(pitcher[pitcher["player_name"] == to_statcast_name(r["pitcher"])]) > 0
         pitcher_note = "" if pitcher_in_model else \
             '<p class="note">⚠️ Pitcher not in model — using hitter data only</p>'
-        book_lbl = "DraftKings"
+        book_lbl = BOOK_NAMES.get(r.get("book"), r.get("book", "Sportsbook").title())
         edge_str = (f"+{r['edge']:.1f}%" if r["edge"] and r["edge"] > 0
                     else f"{r['edge']:.1f}%" if r["edge"] is not None else "—")
         ph_badge = (f'<span class="ph-badge lhp">vs LHP</span>'
