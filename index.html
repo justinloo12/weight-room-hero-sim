@@ -1,0 +1,2722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB HR Model — Thursday, March 26, 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  :root {
+    --bg:#0c0c0e;--surface:#111114;--card:#18181c;--border:#242428;
+    --text:#f0f0f2;--muted:#5a5a6e;--soft:#8a8a9e;
+    --green:#21c45d;--red:#f04f58;--amber:#f59e0b;--blue:#4f86f7;--purple:#8b5cf6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+ 
+  /* ── Header ── */
+  .header{background:#ffffff;padding:36px 20px 24px;text-align:center;border-bottom:1px solid #e2e2e6}
+  .header .date{font-size:clamp(24px,4vw,44px);font-weight:900;color:#0a0a0c;letter-spacing:-1px}
+  .header .subtitle{color:#5a5a6e;margin-top:6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+ 
+  /* ── Layout ── */
+  .container{max-width:1120px;margin:0 auto;padding:24px 20px}
+  h2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--soft);margin:32px 0 14px}
+ 
+  /* ── Cards ── */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+  .card:hover{border-color:#3a3a44}
+  .card-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .rank{background:var(--blue);color:#fff;font-weight:700;border-radius:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+  .player-name{font-size:17px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
+  .team-badge{background:var(--border);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;color:var(--soft)}
+  .ph-badge{border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.03em}
+  .ph-badge.lhp{background:rgba(139,92,246,.15);color:var(--purple)}
+  .ph-badge.rhp{background:rgba(79,134,247,.12);color:var(--blue)}
+  .card-body{padding:14px 16px}
+  .stats-row{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px}
+  .stat{display:flex;flex-direction:column;gap:2px}
+  .stat label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+  .edge-val{font-weight:700;color:var(--green)}
+  .matchup{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .note{font-size:12px;color:var(--amber);margin-bottom:10px}
+ 
+  /* ── Key factors ── */
+  .reasons{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+  .reasons strong{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+  .reasons ul{margin-top:6px;padding-left:14px}
+  .reasons li{font-size:12px;margin-bottom:3px;line-height:1.55;color:#c0c0d0}
+  .super-outlier{color:#f0b429 !important;font-weight:600}
+  .cold-outlier{color:#60a5fa !important;font-weight:600}
+ 
+  /* ── Odds source row ── */
+  .odds-source{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .book-tag{background:rgba(79,134,247,.1);color:var(--blue);border-radius:4px;padding:2px 8px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  .odds-num{font-size:19px;font-weight:900;color:var(--green);letter-spacing:-.4px}
+  .implied-num{color:var(--muted);font-size:12px}
+  .model-num{color:var(--blue);font-weight:600;font-size:13px}
+  .edge-pos{color:var(--green);font-weight:700}
+  .edge-neg{color:var(--red);font-weight:700}
+  .no-odds{color:var(--muted);font-size:12px}
+ 
+  /* ── Prob bar ── */
+  .prob-wrap{display:flex;align-items:center;gap:8px}
+  .prob-bar{height:4px;border-radius:2px;min-width:4px;max-width:100px;opacity:.85}
+  .prob-label{font-size:17px;font-weight:900;letter-spacing:-.4px;color:var(--text)}
+ 
+  /* ── Badges ── */
+  .badge{border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;letter-spacing:.02em}
+  .badge.red{background:rgba(240,79,88,.12);color:var(--red)}
+  .badge.green{background:rgba(33,196,93,.12);color:var(--green)}
+  .badge.yellow{background:rgba(245,158,11,.12);color:var(--amber)}
+  .badge.grey{background:rgba(90,90,110,.15);color:var(--soft)}
+  .badge.dark{background:rgba(79,134,247,.1);color:var(--blue)}
+ 
+  /* ── Game tabs ── */
+  .tab-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0}
+  .tab-btn{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:8px 12px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;line-height:1.4;transition:color .15s,border-color .15s;margin-bottom:-1px;font-family:inherit}
+  .tab-btn.active{color:var(--text);border-bottom-color:var(--blue)}
+  .tab-btn:hover:not(.active){color:var(--soft)}
+  .tab-panel{display:none}.tab-panel.active{display:block}
+ 
+  /* ── Top picks tabs ── */
+  .top-tab-bar{display:flex;gap:4px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;width:fit-content}
+  .top-tab-btn{background:transparent;border:none;color:var(--muted);padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:all .12s;font-family:inherit}
+  .top-tab-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .top-tab-btn:hover:not(.active){color:var(--soft)}
+  .top-tab-panel{display:none}.top-tab-panel.active{display:block}
+ 
+  /* ── Game matchup layout ── */
+  .game-weather{font-size:11px;color:var(--muted);text-align:center;padding:6px 0 16px;letter-spacing:.03em}
+  .matchup-grid{display:grid;grid-template-columns:1fr 48px 1fr;gap:0;align-items:start}
+  .vs-divider{display:flex;align-items:flex-start;justify-content:center;padding-top:52px;font-weight:700;color:var(--border);font-size:11px;letter-spacing:.1em}
+  .side-col{min-width:0}
+  .side-header{font-size:14px;font-weight:800;padding:8px 0 10px;border-bottom:1px solid var(--border);margin-bottom:12px;letter-spacing:-.2px}
+  .away-header{color:var(--blue)}
+  .home-header{color:var(--green)}
+  .side-sub{font-size:11px;font-weight:400;color:var(--muted);margin-left:4px}
+ 
+  /* ── Pitcher box ── */
+  .pitcher-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+  .pb-name{font-size:13px;font-weight:700;margin-bottom:10px;letter-spacing:-.1px}
+  .pb-stats{display:flex;gap:16px;flex-wrap:wrap}
+  .pb-stat{display:flex;flex-direction:column;gap:2px}
+  .pb-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:500}
+  .pb-val{font-size:13px;font-weight:700}
+ 
+  /* ── Lineup table ── */
+  .lineup-wrap{overflow-x:auto}
+  .lineup-tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .lineup-tbl thead th{padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;font-weight:500}
+  .ln-row{border-bottom:1px solid var(--border);transition:background .1s}
+  .ln-row:hover{background:rgba(255,255,255,.025)}
+  .ln-row td{padding:8px 8px;vertical-align:middle}
+  .ln-name{font-weight:700;white-space:nowrap;font-size:13px;color:var(--text)}
+  .ln-prob{font-weight:900;font-size:14px;white-space:nowrap;letter-spacing:-.3px}
+  .ln-odds{color:var(--green);font-weight:700;font-size:12px}
+  .ln-edge-pos{color:var(--green);font-weight:700;font-size:12px}
+  .ln-edge-neg{color:var(--red);font-size:12px}
+  .ln-stat{color:var(--soft);font-size:12px}
+  .ln-reason{color:var(--muted);font-size:11px;max-width:200px;line-height:1.4}
+  .no-data{color:var(--muted);font-style:italic;font-size:12px}
+  .empty{color:var(--muted);padding:20px 0;text-align:center;font-size:13px}
+  .footer{text-align:center;color:var(--muted);font-size:11px;padding:24px 20px;border-top:1px solid var(--border);margin-top:40px;letter-spacing:.03em}
+  @media(max-width:700px){.matchup-grid{grid-template-columns:1fr}.vs-divider{display:none}.stats-row{gap:16px}.card-header{flex-direction:column;align-items:flex-start}.top-tab-bar{width:100%}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="date">Thursday, March 26, 2026</div>
+  <div class="subtitle">MLB Home Run Model &nbsp;·&nbsp; Updated 07:42 PM ET</div>
+</div>
+<div class="container">
+  <h2>🏆 Top Picks Today</h2>
+  
+  <div class="tab-bar top-tab-bar">
+    <button class="top-tab-btn active" onclick="showTopTab('prob')">🎯 Highest Probability</button>
+    <button class="top-tab-btn" onclick="showTopTab('edge')">💰 Best Value / Edge</button>
+  </div>
+  <div id="tab-prob" class="top-tab-panel active">
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#1</span>
+    <span class="player-name">Eugenio Suárez</span>
+    <span class="team-badge">CIN</span>
+    <span class="ph-badge lhp">vs LHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 22.3%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:100%;background:#e74c3c"></div><span class="prob-label">22.3%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Garrett Crochet</strong> · BOS @ CIN · 4:10 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>HR rate vs slider 11.11% (above average)</li><li>xwOBA vs slider 0.498 (above average)</li><li>Weather: 81°F — warm conditions favour fly balls · 16 mph wind — can boost fly ball distance</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#2</span>
+    <span class="player-name">Shohei Ohtani</span>
+    <span class="team-badge">LAD</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 21.9%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:100%;background:#e74c3c"></div><span class="prob-label">21.9%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Zac Gallen</strong> · AZ @ LAD · 8:30 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.592 (well above average)</li><li>xwOBA vs slider 0.546 (above average)</li><li>HR rate vs sinker 7.50% (above average)</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#3</span>
+    <span class="player-name">Pete Alonso</span>
+    <span class="team-badge">BAL</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 20.8%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:100%;background:#e74c3c"></div><span class="prob-label">20.8%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Joe Ryan</strong> · MIN @ BAL · 3:05 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.554 (above average)</li><li>xwOBA vs slider 0.449 (slightly above average)</li><li>Exit velocity vs 4-seam: 88.8 mph (slightly above average)</li><li class="cold-outlier">❄️ MIN bullpen is above average — tough late-game matchup</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#4</span>
+    <span class="player-name">Max Muncy</span>
+    <span class="team-badge">LAD</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 20.3%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:100%;background:#e74c3c"></div><span class="prob-label">20.3%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Zac Gallen</strong> · AZ @ LAD · 8:30 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.497 (slightly above average)</li><li>HR rate vs sinker 6.35% (slightly above average)</li><li>HR rate vs changeup 6.67% (slightly above average)</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#5</span>
+    <span class="player-name">Taylor Ward</span>
+    <span class="team-badge">BAL</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 19.9%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:100%;background:#e74c3c"></div><span class="prob-label">19.9%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Joe Ryan</strong> · MIN @ BAL · 3:05 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.513 (above average)</li><li>HR rate vs slider 6.92% (slightly above average)</li><li>HR rate vs sinker 4.96% (slightly above average)</li><li class="cold-outlier">❄️ MIN bullpen is above average — tough late-game matchup</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#6</span>
+    <span class="player-name">Will Benson</span>
+    <span class="team-badge">CIN</span>
+    <span class="ph-badge lhp">vs LHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 19.1%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:96%;background:#e74c3c"></div><span class="prob-label">19.1%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Garrett Crochet</strong> · BOS @ CIN · 4:10 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs slider 0.541 (above average)</li><li>vs LHP: HR every 8 at-bats (above average)</li><li>Weather: 81°F — warm conditions favour fly balls · 16 mph wind — can boost fly ball distance</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#7</span>
+    <span class="player-name">Junior Caminero</span>
+    <span class="team-badge">TB</span>
+    <span class="ph-badge lhp">vs LHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 18.1%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:90%;background:#e74c3c"></div><span class="prob-label">18.1%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Matthew Liberatore</strong> · TB @ STL · 4:15 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.497 (slightly above average)</li><li>Exit velocity vs 4-seam: 88.4 mph (slightly above average)</li><li>Weather: 91°F — hot air carries the ball farther · 13 mph wind</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#8</span>
+    <span class="player-name">Teoscar Hernández</span>
+    <span class="team-badge">LAD</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 18.0%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:90%;background:#e74c3c"></div><span class="prob-label">18.0%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Zac Gallen</strong> · AZ @ LAD · 8:30 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.503 (slightly above average)</li><li>xwOBA vs slider 0.425 (near average)</li><li>HR rate vs slider 5.50% (near average)</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#9</span>
+    <span class="player-name">Kyle Manzardo</span>
+    <span class="team-badge">CLE</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 18.0%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:90%;background:#e74c3c"></div><span class="prob-label">18.0%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Logan Gilbert</strong> · CLE @ SEA · 10:10 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs slider 0.560 (well above average)</li><li>HR rate vs slider 11.29% (above average)</li><li>Exit velocity vs slider: 91.1 mph (slightly above average)</li><li class="cold-outlier">❄️ SEA bullpen is above average — tough late-game matchup</li></ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="rank">#10</span>
+    <span class="player-name">Will Smith</span>
+    <span class="team-badge">LAD</span>
+    <span class="ph-badge rhp">vs RHP</span>
+    <span class="badge grey">Model Only</span>
+  </div>
+  <div class="card-body">
+    <div class="odds-source"><span class="no-odds">No odds posted yet</span>&nbsp;·&nbsp;<span class="model-num">Model: 17.7%</span></div>
+    <div class="stats-row" style="margin-top:10px">
+      <div class="stat"><label>Model Prob</label><div class="prob-wrap"><div class="prob-bar" style="width:89%;background:#e74c3c"></div><span class="prob-label">17.7%</span></div></div>
+      <div class="stat"><label>Implied %</label><span>—</span></div>
+      <div class="stat"><label>Edge</label><span class="edge-val">—</span></div>
+    </div>
+    <p class="matchup">vs <strong>Zac Gallen</strong> · AZ @ LAD · 8:30 PM ET</p>
+    
+    <div class="reasons">
+      <strong>Key factors:</strong>
+      <ul><li>xwOBA vs fastball 0.519 (above average)</li><li>Avg launch angle 25.4° (slightly above average)</li><li>Exit velocity vs 4-seam: 88.2 mph (slightly above average)</li></ul>
+    </div>
+  </div>
+</div></div>
+  <div id="tab-edge" class="top-tab-panel"><p class="empty">No value picks with odds posted yet.</p></div>
+  <h2>📅 Today's Games</h2>
+  
+  <div class="tab-bar"><button class="tab-btn active" onclick="showTab('PIT@NYM')">PIT@NYM<br><small>1:15 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('CWS@MIL')">CWS@MIL<br><small>2:10 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('WSH@CHC')">WSH@CHC<br><small>2:20 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('MIN@BAL')">MIN@BAL<br><small>3:05 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('BOS@CIN')">BOS@CIN<br><small>4:10 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('LAA@HOU')">LAA@HOU<br><small>4:10 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('DET@SD')">DET@SD<br><small>4:10 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('TB@STL')">TB@STL<br><small>4:15 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('TEX@PHI')">TEX@PHI<br><small>4:15 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('AZ@LAD')">AZ@LAD<br><small>8:30 PM ET</small></button>
+<button class="tab-btn" onclick="showTab('CLE@SEA')">CLE@SEA<br><small>10:10 PM ET</small></button>
+</div>
+  
+<div id="tab-PIT@NYM" class="tab-panel active">
+  <div class="game-weather">🌡 58°F &nbsp;·&nbsp; 💨 11 mph S &nbsp;·&nbsp; 💧 65% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ PIT <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Paul Skenes <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.31</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">2.9%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">22.9%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">82.5</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.15%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Brandon Lowe</td>
+  <td class="ln-prob" style="color:#e67e22">14.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">HR rate vs sinker 5.77% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Oneil Cruz</td>
+  <td class="ln-prob" style="color:#e67e22">13.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>10%</td><td class='ln-stat'>87</td><td class='ln-stat'>36%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.494 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Marcell Ozuna</td>
+  <td class="ln-prob" style="color:#e67e22">11.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.448 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Billy Cook</td>
+  <td class="ln-prob" style="color:#e67e22">10.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>80</td><td class='ln-stat'>12%</td>
+  <td class="ln-reason">Avg launch angle 22.2° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ryan O'Hearn</td>
+  <td class="ln-prob" style="color:#58a6ff">8.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.436 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bryan Reynolds</td>
+  <td class="ln-prob" style="color:#58a6ff">8.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs slider 0.485 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Henry Davis</td>
+  <td class="ln-prob" style="color:#58a6ff">7.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Avg launch angle 26.1° (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Spencer Horwitz</td>
+  <td class="ln-prob" style="color:#58a6ff">6.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Avg launch angle 20.5° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jared Triolo</td>
+  <td class="ln-prob" style="color:#58a6ff">5.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">HR rate vs sinker 3.61% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nick Yorke</td>
+  <td class="ln-prob" style="color:#58a6ff">4.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>82</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs slider 0.482 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Joey Bart</td>
+  <td class="ln-prob" style="color:#58a6ff">3.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>82</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.453 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nick Gonzales</td>
+  <td class="ln-prob" style="color:#58a6ff">3.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">HR rate vs changeup 2.78% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Mangum</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>81</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">Exit velocity vs slider: 82.3 mph (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 NYM <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Freddy Peralta <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.64</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">4.3%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">20.2%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">81.6</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.36%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Juan Soto</td>
+  <td class="ln-prob" style="color:#e67e22">12.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>11%</td><td class='ln-stat'>87</td><td class='ln-stat'>37%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.552 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jared Young</td>
+  <td class="ln-prob" style="color:#58a6ff">9.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>82</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">HR rate vs slider 12.50% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Carson Benge</td>
+  <td class="ln-prob" style="color:#58a6ff">8.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>0%</td><td class='ln-stat'>75</td><td class='ln-stat'>8%</td>
+  <td class="ln-reason">PIT bullpen is HR-prone — good chance of seeing relieve…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Francisco Alvarez</td>
+  <td class="ln-prob" style="color:#58a6ff">6.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>87</td><td class='ln-stat'>37%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.536 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jorge Polanco</td>
+  <td class="ln-prob" style="color:#58a6ff">6.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>32%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 87.4 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brett Baty</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.463 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Mark Vientos</td>
+  <td class="ln-prob" style="color:#58a6ff">4.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>32%</td>
+  <td class="ln-reason">xwOBA vs slider 0.437 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Francisco Lindor</td>
+  <td class="ln-prob" style="color:#58a6ff">4.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.424 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luis Robert Jr.</td>
+  <td class="ln-prob" style="color:#58a6ff">4.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">HR rate vs changeup 7.27% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Marcus Semien</td>
+  <td class="ln-prob" style="color:#58a6ff">3.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Pull-side fly ball rate 18.3% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bo Bichette</td>
+  <td class="ln-prob" style="color:#58a6ff">3.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">Exit velocity vs slider: 84.8 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luis Torrens</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs slider 0.417 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Tyrone Taylor</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">Avg launch angle 24.2° (slightly above average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-CWS@MIL" class="tab-panel">
+  <div class="game-weather">🌡 37°F &nbsp;·&nbsp; 💨 15 mph NE &nbsp;·&nbsp; 💧 95% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ CWS <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Shane Smith <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.57</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.5%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">26.6%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.7</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.11%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Colson Montgomery</td>
+  <td class="ln-prob" style="color:#e67e22">12.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">HR rate vs slider 15.38% (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Reese McGuire</td>
+  <td class="ln-prob" style="color:#e67e22">11.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>82</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.712 (elite — top 0.3% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Munetaka Murakami</td>
+  <td class="ln-prob" style="color:#e67e22">10.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>15%</td><td class='ln-stat'>93</td><td class='ln-stat'>40%</td>
+  <td class="ln-reason">HR rate vs 4-seam fastball 28.57% (outstanding — top 1%…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Andrew Benintendi</td>
+  <td class="ln-prob" style="color:#58a6ff">7.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">HR rate vs slider 6.67% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Tristan Peters</td>
+  <td class="ln-prob" style="color:#58a6ff">7.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Exit velocity vs slider: 85.0 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Everson Pereira</td>
+  <td class="ln-prob" style="color:#58a6ff">6.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">HR rate vs changeup 16.67% (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Austin Hays</td>
+  <td class="ln-prob" style="color:#58a6ff">6.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">HR rate vs sinker 3.57% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Lenyn Sosa</td>
+  <td class="ln-prob" style="color:#58a6ff">6.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.464 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Miguel Vargas</td>
+  <td class="ln-prob" style="color:#58a6ff">4.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Avg launch angle 25.4° (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Derek Hill</td>
+  <td class="ln-prob" style="color:#58a6ff">3.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>81</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.532 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Chase Meidroth</td>
+  <td class="ln-prob" style="color:#58a6ff">2.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>83</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">Exit velocity vs slider: 83.5 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Edgar Quero</td>
+  <td class="ln-prob" style="color:#58a6ff">2.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>85</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Exit velocity vs slider: 84.0 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luisangel Acuña</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>80</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 84.3 mph (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 MIL <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Jacob Misiorowski <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.55</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.3%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">18.5%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">82.7</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.05%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Gary Sánchez</td>
+  <td class="ln-prob" style="color:#e67e22">12.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>86</td><td class='ln-stat'>37%</td>
+  <td class="ln-reason">HR rate vs changeup 20.00% (outstanding — top 1% in MLB…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Christian Yelich</td>
+  <td class="ln-prob" style="color:#58a6ff">9.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">HR rate vs changeup 9.80% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Bauers</td>
+  <td class="ln-prob" style="color:#58a6ff">9.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.443 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Andrew Vaughn</td>
+  <td class="ln-prob" style="color:#58a6ff">6.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>86</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.471 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">David Hamilton</td>
+  <td class="ln-prob" style="color:#58a6ff">6.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">HR rate vs sinker 5.00% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">William Contreras</td>
+  <td class="ln-prob" style="color:#58a6ff">6.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 86.4 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brice Turang</td>
+  <td class="ln-prob" style="color:#58a6ff">5.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.442 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Garrett Mitchell</td>
+  <td class="ln-prob" style="color:#58a6ff">5.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>82</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.452 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Sal Frelick</td>
+  <td class="ln-prob" style="color:#58a6ff">4.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>80</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">HR rate vs changeup 4.62% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Blake Perkins</td>
+  <td class="ln-prob" style="color:#58a6ff">4.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">HR rate vs slider 11.11% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luis Rengifo</td>
+  <td class="ln-prob" style="color:#58a6ff">3.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">HR rate vs changeup 2.44% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Joey Ortiz</td>
+  <td class="ln-prob" style="color:#58a6ff">2.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">Exit velocity vs slider: 82.3 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brandon Lockridge</td>
+  <td class="ln-prob" style="color:#58a6ff">2.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs slider 0.421 (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-WSH@CHC" class="tab-panel">
+  <div class="game-weather">🌡 43°F &nbsp;·&nbsp; 💨 16 mph N &nbsp;·&nbsp; 💧 95% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ WSH <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Cade Cavalli <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.67</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.2%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">28.4%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">84.2</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.48%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">James Wood</td>
+  <td class="ln-prob" style="color:#e67e22">14.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>87</td><td class='ln-stat'>35%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.623 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Joey Wiemer</td>
+  <td class="ln-prob" style="color:#e67e22">13.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>85</td><td class='ln-stat'>35%</td>
+  <td class="ln-reason">xwOBA vs slider 0.637 (outstanding — top 2% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nasim Nuñez</td>
+  <td class="ln-prob" style="color:#58a6ff">7.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>82</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.421 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jorbit Vivas</td>
+  <td class="ln-prob" style="color:#58a6ff">6.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>80</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">Exit velocity vs slider: 83.8 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Drew Millas</td>
+  <td class="ln-prob" style="color:#58a6ff">5.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>79</td><td class='ln-stat'>13%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.467 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Andrés Chaparro</td>
+  <td class="ln-prob" style="color:#58a6ff">5.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">Exit velocity vs slider: 90.9 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luis García Jr.</td>
+  <td class="ln-prob" style="color:#58a6ff">5.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs slider 0.436 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">CJ Abrams</td>
+  <td class="ln-prob" style="color:#58a6ff">5.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Pull-side fly ball rate 16.7% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Daylen Lile</td>
+  <td class="ln-prob" style="color:#58a6ff">4.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.423 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brady House</td>
+  <td class="ln-prob" style="color:#58a6ff">3.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs slider 0.465 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Keibert Ruiz</td>
+  <td class="ln-prob" style="color:#58a6ff">2.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">Pull-side fly ball rate 12.7% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jacob Young</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>79</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Limited historical data for this matchup</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">José Tena</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">Exit velocity vs slider: 86.2 mph (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 CHC <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Matthew Boyd <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.55</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">4.7%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">22.8%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">81.9</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.03%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Miguel Amaya</td>
+  <td class="ln-prob" style="color:#e67e22">14.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Pull-side fly ball rate 21.8% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Michael Busch</td>
+  <td class="ln-prob" style="color:#e67e22">14.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.539 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Pete Crow-Armstrong</td>
+  <td class="ln-prob" style="color:#e67e22">13.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>83</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.484 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Alex Bregman</td>
+  <td class="ln-prob" style="color:#e67e22">13.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 87.6 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Moisés Ballesteros</td>
+  <td class="ln-prob" style="color:#e67e22">13.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>84</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.616 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ian Happ</td>
+  <td class="ln-prob" style="color:#e67e22">13.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>83</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">HR rate vs sinker 5.49% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Scott Kingery</td>
+  <td class="ln-prob" style="color:#e67e22">12.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>80</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">vs RHP: HR every 15 at-bats (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Carson Kelly</td>
+  <td class="ln-prob" style="color:#e67e22">12.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">HR rate vs slider 5.88% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dansby Swanson</td>
+  <td class="ln-prob" style="color:#e67e22">12.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.509 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Matt Shaw</td>
+  <td class="ln-prob" style="color:#58a6ff">9.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">HR rate vs changeup 4.76% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dylan Carlson</td>
+  <td class="ln-prob" style="color:#58a6ff">8.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>17%</td>
+  <td class="ln-reason">HR rate vs sinker 4.08% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Michael Conforto</td>
+  <td class="ln-prob" style="color:#58a6ff">7.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.467 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nico Hoerner</td>
+  <td class="ln-prob" style="color:#58a6ff">4.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>82</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Pitcher allows 84.2 mph avg exit velocity (near average…</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-MIN@BAL" class="tab-panel">
+  <div class="game-weather">🌡 76°F &nbsp;·&nbsp; 💨 12 mph S &nbsp;·&nbsp; 💧 40% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ MIN <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Joe Ryan <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.71</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">5.3%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">24.0%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.2</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.61%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Byron Buxton</td>
+  <td class="ln-prob" style="color:#e67e22">14.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>85</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">xwOBA vs slider 0.559 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Matt Wallner</td>
+  <td class="ln-prob" style="color:#58a6ff">8.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">HR rate vs slider 8.51% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Tristan Gray</td>
+  <td class="ln-prob" style="color:#58a6ff">7.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>86</td><td class='ln-stat'>32%</td>
+  <td class="ln-reason">HR rate vs changeup 6.67% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">James Outman</td>
+  <td class="ln-prob" style="color:#58a6ff">5.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.530 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Kody Clemens</td>
+  <td class="ln-prob" style="color:#58a6ff">4.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.517 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Royce Lewis</td>
+  <td class="ln-prob" style="color:#58a6ff">4.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">HR rate vs slider 8.11% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Josh Bell</td>
+  <td class="ln-prob" style="color:#58a6ff">4.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">Exit velocity vs slider: 88.6 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Victor Caratini</td>
+  <td class="ln-prob" style="color:#58a6ff">4.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Exit velocity vs slider: 88.0 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luke Keaschall</td>
+  <td class="ln-prob" style="color:#58a6ff">3.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">HR rate vs sinker 5.36% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brooks Lee</td>
+  <td class="ln-prob" style="color:#58a6ff">3.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 86.0 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Trevor Larnach</td>
+  <td class="ln-prob" style="color:#58a6ff">3.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">HR rate vs changeup 4.92% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ryan Jeffers</td>
+  <td class="ln-prob" style="color:#58a6ff">2.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 86.9 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Austin Martin</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>79</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.400 (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 BAL <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Trevor Rogers <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.26</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.6%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">28.4%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.5</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">0.95%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Pete Alonso</td>
+  <td class="ln-prob" style="color:#e74c3c">20.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>10%</td><td class='ln-stat'>87</td><td class='ln-stat'>34%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.554 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Taylor Ward</td>
+  <td class="ln-prob" style="color:#e74c3c">19.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.513 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Tyler O'Neill</td>
+  <td class="ln-prob" style="color:#e74c3c">17.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.506 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Colton Cowser</td>
+  <td class="ln-prob" style="color:#e74c3c">17.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.459 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Coby Mayo</td>
+  <td class="ln-prob" style="color:#e74c3c">15.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">HR rate vs changeup 8.33% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jeremiah Jackson</td>
+  <td class="ln-prob" style="color:#e74c3c">15.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 87.7 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Samuel Basallo</td>
+  <td class="ln-prob" style="color:#e74c3c">15.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">Avg launch angle 22.2° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Blaze Alexander</td>
+  <td class="ln-prob" style="color:#e67e22">13.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>82</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.559 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Gunnar Henderson</td>
+  <td class="ln-prob" style="color:#e67e22">12.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.447 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dylan Beavers</td>
+  <td class="ln-prob" style="color:#e67e22">11.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>81</td><td class='ln-stat'>16%</td>
+  <td class="ln-reason">Avg launch angle 26.6° (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Adley Rutschman</td>
+  <td class="ln-prob" style="color:#58a6ff">9.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 87.2 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ryan Mountcastle</td>
+  <td class="ln-prob" style="color:#58a6ff">7.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.446 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Leody Taveras</td>
+  <td class="ln-prob" style="color:#58a6ff">6.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>79</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">xwOBA vs slider 0.534 (above average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-BOS@CIN" class="tab-panel">
+  <div class="game-weather">🌡 81°F &nbsp;·&nbsp; 💨 16 mph SW &nbsp;·&nbsp; 💧 46% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ BOS <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Garrett Crochet <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.63</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.7%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">23.8%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">82.9</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.32%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Roman Anthony</td>
+  <td class="ln-prob" style="color:#e67e22">13.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>87</td><td class='ln-stat'>39%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.565 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Trevor Story</td>
+  <td class="ln-prob" style="color:#e67e22">11.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs slider 0.442 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Andruw Monasterio</td>
+  <td class="ln-prob" style="color:#e67e22">10.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">HR rate vs changeup 6.25% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Wilyer Abreu</td>
+  <td class="ln-prob" style="color:#e67e22">10.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.498 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Willson Contreras</td>
+  <td class="ln-prob" style="color:#e67e22">10.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.572 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Carlos Narváez</td>
+  <td class="ln-prob" style="color:#58a6ff">9.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs slider 0.428 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ceddanne Rafaela</td>
+  <td class="ln-prob" style="color:#58a6ff">7.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">Exit velocity vs slider: 83.8 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Caleb Durbin</td>
+  <td class="ln-prob" style="color:#58a6ff">6.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>80</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">Pull-side fly ball rate 16.7% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jarren Duran</td>
+  <td class="ln-prob" style="color:#58a6ff">5.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs slider 0.414 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Marcelo Mayer</td>
+  <td class="ln-prob" style="color:#58a6ff">5.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs slider 0.527 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Masataka Yoshida</td>
+  <td class="ln-prob" style="color:#58a6ff">5.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">Hard contact 33.1% of batted balls (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Connor Wong</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>79</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">Avg launch angle 16.8° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Isiah Kiner-Falefa</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>80</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">Weather: 81°F — warm conditions favour fly balls · 16 m…</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 CIN <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Andrew Abbott <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.58</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">4.3%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">20.3%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">81.0</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.13%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Eugenio Suárez</td>
+  <td class="ln-prob" style="color:#e74c3c">22.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">HR rate vs slider 11.11% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Will Benson</td>
+  <td class="ln-prob" style="color:#e74c3c">19.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>85</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">xwOBA vs slider 0.541 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Sal Stewart</td>
+  <td class="ln-prob" style="color:#e74c3c">17.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>88</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.830 (elite — top 0.0% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Noelvi Marte</td>
+  <td class="ln-prob" style="color:#e74c3c">16.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">HR rate vs changeup 7.14% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Tyler Stephenson</td>
+  <td class="ln-prob" style="color:#e74c3c">15.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.491 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Spencer Steer</td>
+  <td class="ln-prob" style="color:#e67e22">14.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">HR rate vs slider 5.13% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Elly De La Cruz</td>
+  <td class="ln-prob" style="color:#e67e22">13.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.444 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Matt McLain</td>
+  <td class="ln-prob" style="color:#e67e22">12.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.448 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nathaniel Lowe</td>
+  <td class="ln-prob" style="color:#58a6ff">9.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.434 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">TJ Friedl</td>
+  <td class="ln-prob" style="color:#58a6ff">8.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">HR rate vs slider 3.90% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dane Myers</td>
+  <td class="ln-prob" style="color:#58a6ff">8.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 86.8 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jose Trevino</td>
+  <td class="ln-prob" style="color:#58a6ff">6.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Pull-side fly ball rate 16.5% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ke'Bryan Hayes</td>
+  <td class="ln-prob" style="color:#58a6ff">3.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>84</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Exit velocity vs slider: 84.9 mph (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-LAA@HOU" class="tab-panel">
+  <div class="game-weather">🌡 77°F &nbsp;·&nbsp; 💨 9 mph S &nbsp;·&nbsp; 💧 62% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ LAA <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">José Soriano <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.39</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">4.3%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">34.1%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">85.7</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.45%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Mike Trout</td>
+  <td class="ln-prob" style="color:#e67e22">11.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.498 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Zach Neto</td>
+  <td class="ln-prob" style="color:#e67e22">10.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.496 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jo Adell</td>
+  <td class="ln-prob" style="color:#e67e22">10.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.532 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jorge Soler</td>
+  <td class="ln-prob" style="color:#58a6ff">9.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">HR rate vs slider 8.33% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Yoán Moncada</td>
+  <td class="ln-prob" style="color:#58a6ff">9.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>82</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.435 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jeimer Candelario</td>
+  <td class="ln-prob" style="color:#58a6ff">9.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>81</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">HR rate vs slider 12.50% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Logan O'Hoppe</td>
+  <td class="ln-prob" style="color:#58a6ff">9.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.465 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Travis d'Arnaud</td>
+  <td class="ln-prob" style="color:#58a6ff">6.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">HR rate vs changeup 6.67% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Josh Lowe</td>
+  <td class="ln-prob" style="color:#58a6ff">5.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.408 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nolan Schanuel</td>
+  <td class="ln-prob" style="color:#58a6ff">4.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>82</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">xwOBA vs slider 0.410 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Oswald Peraza</td>
+  <td class="ln-prob" style="color:#58a6ff">4.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>80</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">HR rate vs slider 3.70% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Adam Frazier</td>
+  <td class="ln-prob" style="color:#58a6ff">2.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>80</td><td class='ln-stat'>12%</td>
+  <td class="ln-reason">Avg launch angle 19.7° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bryce Teodosio</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>75</td><td class='ln-stat'>16%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 44.9% of pitches (near …</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 HOU <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Hunter Brown <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.51</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.0%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">19.1%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">81.2</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.89%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Brice Matthews</td>
+  <td class="ln-prob" style="color:#e67e22">10.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>12%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.548 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Joey Loperfido</td>
+  <td class="ln-prob" style="color:#58a6ff">6.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.487 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Isaac Paredes</td>
+  <td class="ln-prob" style="color:#58a6ff">6.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Pull-side fly ball rate 23.0% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Christian Walker</td>
+  <td class="ln-prob" style="color:#58a6ff">5.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>83</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs slider 0.445 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jose Altuve</td>
+  <td class="ln-prob" style="color:#58a6ff">5.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Pitcher allows hard contact 34.1% (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jeremy Peña</td>
+  <td class="ln-prob" style="color:#58a6ff">5.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.479 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Yordan Alvarez</td>
+  <td class="ln-prob" style="color:#58a6ff">4.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>86</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.507 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Yainer Diaz</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Pitcher allows hard contact 34.1% (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Carlos Correa</td>
+  <td class="ln-prob" style="color:#58a6ff">3.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">Pitcher allows hard contact 34.1% (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Cam Smith</td>
+  <td class="ln-prob" style="color:#58a6ff">2.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>81</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.448 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Christian Vázquez</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>82</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">Pitcher allows hard contact 34.1% (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Meyers</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Pitcher allows hard contact 34.1% (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nick Allen</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>0%</td><td class='ln-stat'>78</td><td class='ln-stat'>13%</td>
+  <td class="ln-reason">Pitcher allows hard contact 34.1% (slightly above avera…</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-DET@SD" class="tab-panel">
+  <div class="game-weather">🌡 74°F &nbsp;·&nbsp; 💨 8 mph NW &nbsp;·&nbsp; 💧 58% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ DET <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Tarik Skubal <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.51</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.8%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">18.7%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">80.6</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.87%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Riley Greene</td>
+  <td class="ln-prob" style="color:#e74c3c">16.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>82</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.625 (outstanding — top 2% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Spencer Torkelson</td>
+  <td class="ln-prob" style="color:#e74c3c">16.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">HR rate vs changeup 11.25% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Kerry Carpenter</td>
+  <td class="ln-prob" style="color:#e74c3c">16.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs slider 0.438 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Kevin McGonigle</td>
+  <td class="ln-prob" style="color:#e67e22">12.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>12%</td><td class='ln-stat'>83</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">HR rate vs slider 40.00% (elite — top 0.0% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jahmai Jones</td>
+  <td class="ln-prob" style="color:#e67e22">10.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>32%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.528 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Matt Vierling</td>
+  <td class="ln-prob" style="color:#e67e22">10.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs slider 0.582 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Colt Keith</td>
+  <td class="ln-prob" style="color:#58a6ff">9.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.460 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Javier Báez</td>
+  <td class="ln-prob" style="color:#58a6ff">9.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.451 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Gleyber Torres</td>
+  <td class="ln-prob" style="color:#58a6ff">9.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.459 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Rogers</td>
+  <td class="ln-prob" style="color:#58a6ff">9.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">Avg launch angle 22.0° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dillon Dingler</td>
+  <td class="ln-prob" style="color:#58a6ff">8.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>82</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.460 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Zach McKinstry</td>
+  <td class="ln-prob" style="color:#58a6ff">7.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>80</td><td class='ln-stat'>17%</td>
+  <td class="ln-reason">Avg launch angle 20.5° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Parker Meadows</td>
+  <td class="ln-prob" style="color:#58a6ff">6.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>79</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.482 (slightly above average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 SD <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Nick Pivetta <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.69</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">5.6%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">27.1%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.2</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.56%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Manny Machado</td>
+  <td class="ln-prob" style="color:#e67e22">14.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.475 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ramón Laureano</td>
+  <td class="ln-prob" style="color:#e67e22">12.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.518 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Fernando Tatis Jr.</td>
+  <td class="ln-prob" style="color:#e67e22">10.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>86</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">xwOBA vs slider 0.442 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Gavin Sheets</td>
+  <td class="ln-prob" style="color:#58a6ff">8.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>35%</td>
+  <td class="ln-reason">Hard contact 34.9% of batted balls (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luis Campusano</td>
+  <td class="ln-prob" style="color:#58a6ff">8.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>81</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 88.5 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nick Castellanos</td>
+  <td class="ln-prob" style="color:#58a6ff">7.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.424 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bryce Johnson</td>
+  <td class="ln-prob" style="color:#58a6ff">6.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>79</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.505 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jackson Merrill</td>
+  <td class="ln-prob" style="color:#58a6ff">6.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.477 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Xander Bogaerts</td>
+  <td class="ln-prob" style="color:#58a6ff">6.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.435 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Miguel Andujar</td>
+  <td class="ln-prob" style="color:#58a6ff">5.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">HR rate vs slider 3.41% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Cronenworth</td>
+  <td class="ln-prob" style="color:#58a6ff">4.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">Avg launch angle 20.9° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ty France</td>
+  <td class="ln-prob" style="color:#58a6ff">4.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs slider 0.431 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Freddy Fermin</td>
+  <td class="ln-prob" style="color:#58a6ff">3.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">Avg launch angle 18.3° (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-TB@STL" class="tab-panel">
+  <div class="game-weather">🌡 91°F &nbsp;·&nbsp; 💨 13 mph SW &nbsp;·&nbsp; 💧 33% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ TB <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Drew Rasmussen <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.67</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.5%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">26.1%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.8</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.48%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Junior Caminero</td>
+  <td class="ln-prob" style="color:#e74c3c">18.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>86</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.497 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Carson Williams</td>
+  <td class="ln-prob" style="color:#e74c3c">15.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>81</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.486 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Yandy Díaz</td>
+  <td class="ln-prob" style="color:#e67e22">13.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>86</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.491 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ryan Vilade</td>
+  <td class="ln-prob" style="color:#e67e22">12.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.834 (elite — top 0.0% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Cedric Mullins</td>
+  <td class="ln-prob" style="color:#e67e22">10.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Avg launch angle 24.8° (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jonathan Aranda</td>
+  <td class="ln-prob" style="color:#e67e22">10.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs slider 0.536 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Richie Palacios</td>
+  <td class="ln-prob" style="color:#e67e22">10.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Exit velocity vs slider: 95.0 mph (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nick Fortes</td>
+  <td class="ln-prob" style="color:#58a6ff">9.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">Exit velocity vs slider: 84.3 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Fraley</td>
+  <td class="ln-prob" style="color:#58a6ff">7.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Exit velocity vs slider: 85.1 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jonny DeLuca</td>
+  <td class="ln-prob" style="color:#58a6ff">6.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">xwOBA vs slider 0.431 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Hunter Feduccia</td>
+  <td class="ln-prob" style="color:#58a6ff">3.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>80</td><td class='ln-stat'>16%</td>
+  <td class="ln-reason">Avg launch angle 23.2° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ben Williamson</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Pitcher allows 84.8 mph avg exit velocity (near average…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Chandler Simpson</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>0%</td><td class='ln-stat'>79</td><td class='ln-stat'>11%</td>
+  <td class="ln-reason">Pitcher allows 84.8 mph avg exit velocity (near average…</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 STL <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Matthew Liberatore <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.59</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">5.9%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">28.7%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">84.8</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.20%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Iván Herrera</td>
+  <td class="ln-prob" style="color:#e74c3c">16.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.468 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nolan Gorman</td>
+  <td class="ln-prob" style="color:#e74c3c">16.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">HR rate vs sinker 6.12% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Alec Burleson</td>
+  <td class="ln-prob" style="color:#e67e22">12.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.418 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">JJ Wetherholt</td>
+  <td class="ln-prob" style="color:#e67e22">12.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>19%</td><td class='ln-stat'>91</td><td class='ln-stat'>38%</td>
+  <td class="ln-reason">Pull-side fly ball rate 50.0% (outstanding — top 1% in …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ramón Urías</td>
+  <td class="ln-prob" style="color:#e67e22">11.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 48.9% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Pedro Pagés</td>
+  <td class="ln-prob" style="color:#58a6ff">9.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 48.9% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jordan Walker</td>
+  <td class="ln-prob" style="color:#58a6ff">8.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 48.9% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Yohel Pozo</td>
+  <td class="ln-prob" style="color:#58a6ff">8.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Avg launch angle 23.8° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">José Fermín</td>
+  <td class="ln-prob" style="color:#58a6ff">8.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>0%</td><td class='ln-stat'>83</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs slider 0.494 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nathan Church</td>
+  <td class="ln-prob" style="color:#58a6ff">7.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>80</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Exit velocity vs slider: 89.6 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Masyn Winn</td>
+  <td class="ln-prob" style="color:#58a6ff">6.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">Avg launch angle 22.4° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Victor Scott II</td>
+  <td class="ln-prob" style="color:#58a6ff">4.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>78</td><td class='ln-stat'>17%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 48.9% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Thomas Saggese</td>
+  <td class="ln-prob" style="color:#58a6ff">4.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs slider 0.431 (slightly above average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-TEX@PHI" class="tab-panel">
+  <div class="game-weather">🌡 73°F &nbsp;·&nbsp; 💨 12 mph S &nbsp;·&nbsp; 💧 43% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ TEX <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Nathan Eovaldi <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.41</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.8%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">24.2%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">82.3</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.51%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Corey Seager</td>
+  <td class="ln-prob" style="color:#58a6ff">9.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>86</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.570 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jake Burger</td>
+  <td class="ln-prob" style="color:#58a6ff">6.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">HR rate vs changeup 8.11% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Danny Jansen</td>
+  <td class="ln-prob" style="color:#58a6ff">6.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">HR rate vs slider 7.14% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brandon Nimmo</td>
+  <td class="ln-prob" style="color:#58a6ff">5.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">HR rate vs changeup 8.00% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Wyatt Langford</td>
+  <td class="ln-prob" style="color:#58a6ff">4.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>86</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.455 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Kyle Higashioka</td>
+  <td class="ln-prob" style="color:#58a6ff">4.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Pull-side fly ball rate 19.5% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Joc Pederson</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>86</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">vs LHP: HR every 15 at-bats (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Josh Jung</td>
+  <td class="ln-prob" style="color:#58a6ff">3.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.434 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Andrew McCutchen</td>
+  <td class="ln-prob" style="color:#58a6ff">3.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs slider 0.413 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Evan Carter</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Pull-side fly ball rate 15.8% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ezequiel Duran</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>79</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">Avg launch angle 20.2° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Josh Smith</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">HR rate vs slider 3.53% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Sam Haggerty</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>81</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">HR rate vs sinker 2.33% (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 PHI <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Cristopher Sánchez <span class="ph-badge lhp">LHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.33</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">3.4%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">26.7%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.5</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.24%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Kyle Schwarber</td>
+  <td class="ln-prob" style="color:#e74c3c">17.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>11%</td><td class='ln-stat'>87</td><td class='ln-stat'>38%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.604 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Otto Kemp</td>
+  <td class="ln-prob" style="color:#e67e22">12.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.499 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bryce Harper</td>
+  <td class="ln-prob" style="color:#e67e22">10.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.527 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Justin Crawford</td>
+  <td class="ln-prob" style="color:#58a6ff">9.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>0%</td><td class='ln-stat'>83</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Exit velocity vs slider: 99.8 mph (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dylan Moore</td>
+  <td class="ln-prob" style="color:#58a6ff">7.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>80</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">HR rate vs slider 11.11% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Adolis García</td>
+  <td class="ln-prob" style="color:#58a6ff">7.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Edmundo Sosa</td>
+  <td class="ln-prob" style="color:#58a6ff">6.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bryson Stott</td>
+  <td class="ln-prob" style="color:#58a6ff">5.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brandon Marsh</td>
+  <td class="ln-prob" style="color:#58a6ff">5.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">J.T. Realmuto</td>
+  <td class="ln-prob" style="color:#58a6ff">4.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Trea Turner</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Alec Bohm</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Rafael Marchán</td>
+  <td class="ln-prob" style="color:#58a6ff">4.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>82</td><td class='ln-stat'>19%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 52.7% of pitches (sligh…</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-AZ@LAD" class="tab-panel">
+  <div class="game-weather">🌡 75°F &nbsp;·&nbsp; 💨 10 mph W &nbsp;·&nbsp; 💧 53% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ AZ <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Zac Gallen <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.89</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">5.7%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">28.3%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">84.3</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">3.30%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Corbin Carroll</td>
+  <td class="ln-prob" style="color:#58a6ff">9.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.521 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ketel Marte</td>
+  <td class="ln-prob" style="color:#58a6ff">9.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>86</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">Exit velocity vs slider: 87.2 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">James McCann</td>
+  <td class="ln-prob" style="color:#58a6ff">9.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>85</td><td class='ln-stat'>34%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.489 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jorge Barrosa</td>
+  <td class="ln-prob" style="color:#58a6ff">7.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">HR rate vs sinker 8.33% (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Pavin Smith</td>
+  <td class="ln-prob" style="color:#58a6ff">6.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.460 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Gabriel Moreno</td>
+  <td class="ln-prob" style="color:#58a6ff">6.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 49.3% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Nolan Arenado</td>
+  <td class="ln-prob" style="color:#58a6ff">6.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>83</td><td class='ln-stat'>27%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 49.3% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Tim Tawa</td>
+  <td class="ln-prob" style="color:#58a6ff">6.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 49.3% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ildemaro Vargas</td>
+  <td class="ln-prob" style="color:#58a6ff">5.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Exit velocity vs slider: 87.4 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Jordan Lawlar</td>
+  <td class="ln-prob" style="color:#58a6ff">5.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>82</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.495 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Alek Thomas</td>
+  <td class="ln-prob" style="color:#58a6ff">5.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>82</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.456 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Carlos Santana</td>
+  <td class="ln-prob" style="color:#58a6ff">4.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 49.3% of pitches (near …</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Geraldo Perdomo</td>
+  <td class="ln-prob" style="color:#58a6ff">4.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>82</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">Pitcher's spin hits barrel zone 49.3% of pitches (near …</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 LAD <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Yoshinobu Yamamoto <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.43</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">2.8%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">23.9%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">81.6</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">1.61%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Shohei Ohtani</td>
+  <td class="ln-prob" style="color:#e74c3c">21.9%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>13%</td><td class='ln-stat'>87</td><td class='ln-stat'>36%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.592 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Max Muncy</td>
+  <td class="ln-prob" style="color:#e74c3c">20.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.497 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Teoscar Hernández</td>
+  <td class="ln-prob" style="color:#e74c3c">18.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>84</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.503 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Will Smith</td>
+  <td class="ln-prob" style="color:#e74c3c">17.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.519 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dalton Rushing</td>
+  <td class="ln-prob" style="color:#e74c3c">17.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs slider 0.537 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Kyle Tucker</td>
+  <td class="ln-prob" style="color:#e74c3c">16.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.432 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Freddie Freeman</td>
+  <td class="ln-prob" style="color:#e74c3c">15.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs slider 0.415 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Andy Pages</td>
+  <td class="ln-prob" style="color:#e74c3c">15.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>22%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.442 (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Mookie Betts</td>
+  <td class="ln-prob" style="color:#e67e22">13.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>85</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Pull-side fly ball rate 23.1% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Alex Freeland</td>
+  <td class="ln-prob" style="color:#e67e22">11.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">Exit velocity vs slider: 85.8 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Miguel Rojas</td>
+  <td class="ln-prob" style="color:#58a6ff">6.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>82</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">HR rate vs slider 5.36% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Alex Call</td>
+  <td class="ln-prob" style="color:#58a6ff">5.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>81</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">Exit velocity vs slider: 84.5 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Santiago Espinal</td>
+  <td class="ln-prob" style="color:#58a6ff">2.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>81</td><td class='ln-stat'>18%</td>
+  <td class="ln-reason">Pitcher allows 84.3 mph avg exit velocity (near average…</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+<div id="tab-CLE@SEA" class="tab-panel">
+  <div class="game-weather">🌡 51°F &nbsp;·&nbsp; 💨 3 mph SW &nbsp;·&nbsp; 💧 50% humidity</div>
+  <div class="matchup-grid">
+    <div class="side-col">
+      <div class="side-header away-header">✈️ CLE <span class="side-sub">(Away)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Tanner Bibee <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.86</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">5.4%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">25.6%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">83.3</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">3.18%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Kyle Manzardo</td>
+  <td class="ln-prob" style="color:#e74c3c">18.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">xwOBA vs slider 0.560 (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Rhys Hoskins</td>
+  <td class="ln-prob" style="color:#e74c3c">15.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>85</td><td class='ln-stat'>33%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 88.0 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">David Fry</td>
+  <td class="ln-prob" style="color:#e67e22">14.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>25%</td>
+  <td class="ln-reason">Avg launch angle 25.6° (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">José Ramírez</td>
+  <td class="ln-prob" style="color:#e67e22">13.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>84</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">HR rate vs sinker 7.21% (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">CJ Kayfus</td>
+  <td class="ln-prob" style="color:#e67e22">11.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.470 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Chase DeLauter</td>
+  <td class="ln-prob" style="color:#e67e22">10.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.790 (elite — top 0.1% in MLB)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Bo Naylor</td>
+  <td class="ln-prob" style="color:#e67e22">10.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">Avg launch angle 23.7° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Daniel Schneemann</td>
+  <td class="ln-prob" style="color:#58a6ff">10.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>82</td><td class='ln-stat'>24%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.473 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Austin Hedges</td>
+  <td class="ln-prob" style="color:#58a6ff">9.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>21%</td>
+  <td class="ln-reason">Avg launch angle 23.4° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Gabriel Arias</td>
+  <td class="ln-prob" style="color:#58a6ff">7.5%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>83</td><td class='ln-stat'>26%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.489 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Angel Martínez</td>
+  <td class="ln-prob" style="color:#58a6ff">7.0%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Avg launch angle 20.0° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Steven Kwan</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>1%</td><td class='ln-stat'>80</td><td class='ln-stat'>13%</td>
+  <td class="ln-reason">Avg launch angle 21.4° (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brayan Rocchio</td>
+  <td class="ln-prob" style="color:#58a6ff">4.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">Pull-side fly ball rate 16.4% (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="side-col">
+      <div class="side-header home-header">🏠 SEA <span class="side-sub">(Home)</span></div>
+      <div class="pitcher-box"><div class="pb-name">Logan Gilbert <span class="ph-badge rhp">RHP</span></div><div class="pb-stats"><div class="pb-stat"><span class="pb-label">HR/9</span><span class="pb-val">0.78</span></div><div class="pb-stat"><span class="pb-label">Barrel%</span><span class="pb-val">4.1%</span></div><div class="pb-stat"><span class="pb-label">Hard Hit%</span><span class="pb-val">25.7%</span></div><div class="pb-stat"><span class="pb-label">Exit Velo</span><span class="pb-val">84.0</span></div><div class="pb-stat"><span class="pb-label">HR/AB</span><span class="pb-val">2.91%</span></div></div></div>
+      <div class="lineup-wrap"><table class="lineup-tbl">
+<thead><tr>
+  <th>Player</th><th>Prob</th><th>DK Odds</th><th>Edge</th>
+  <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
+</tr></thead>
+<tbody><tr class="ln-row">
+  <td class="ln-name">Cal Raleigh</td>
+  <td class="ln-prob" style="color:#e74c3c">17.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>9%</td><td class='ln-stat'>85</td><td class='ln-stat'>32%</td>
+  <td class="ln-reason">HR rate vs sinker 12.05% (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Julio Rodríguez</td>
+  <td class="ln-prob" style="color:#e67e22">14.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.538 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Dominic Canzone</td>
+  <td class="ln-prob" style="color:#e67e22">13.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>8%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs slider 0.493 (above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Mitch Garver</td>
+  <td class="ln-prob" style="color:#e67e22">13.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>86</td><td class='ln-stat'>31%</td>
+  <td class="ln-reason">Exit velocity vs 4-seam: 88.6 mph (slightly above avera…</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Randy Arozarena</td>
+  <td class="ln-prob" style="color:#e67e22">13.3%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>30%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.499 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Rob Refsnyder</td>
+  <td class="ln-prob" style="color:#e67e22">12.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>6%</td><td class='ln-stat'>84</td><td class='ln-stat'>29%</td>
+  <td class="ln-reason">xwOBA vs fastball 0.479 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Luke Raley</td>
+  <td class="ln-prob" style="color:#e67e22">11.6%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>7%</td><td class='ln-stat'>83</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">xwOBA vs slider 0.426 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Josh Naylor</td>
+  <td class="ln-prob" style="color:#e67e22">11.2%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>83</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Pull-side fly ball rate 15.6% (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Ryan Bliss</td>
+  <td class="ln-prob" style="color:#e67e22">10.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>80</td><td class='ln-stat'>23%</td>
+  <td class="ln-reason">xwOBA vs slider 0.442 (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Brendan Donovan</td>
+  <td class="ln-prob" style="color:#58a6ff">7.7%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>5%</td><td class='ln-stat'>85</td><td class='ln-stat'>28%</td>
+  <td class="ln-reason">Exit velocity vs slider: 84.2 mph (near average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Cole Young</td>
+  <td class="ln-prob" style="color:#58a6ff">7.4%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>4%</td><td class='ln-stat'>82</td><td class='ln-stat'>20%</td>
+  <td class="ln-reason">Avg launch angle 24.7° (slightly above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Leo Rivas</td>
+  <td class="ln-prob" style="color:#58a6ff">7.1%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>2%</td><td class='ln-stat'>81</td><td class='ln-stat'>14%</td>
+  <td class="ln-reason">HR rate vs slider 15.38% (well above average)</td>
+</tr><tr class="ln-row">
+  <td class="ln-name">Victor Robles</td>
+  <td class="ln-prob" style="color:#58a6ff">4.8%</td>
+  <td class="ln-odds">—</td>
+  <td class="ln-edge-neg">—</td>
+  <td class='ln-stat'>3%</td><td class='ln-stat'>80</td><td class='ln-stat'>16%</td>
+  <td class="ln-reason">Avg launch angle 19.4° (near average)</td>
+</tr></tbody>
+</table></div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="footer">Built with Statcast data · Probabilities based on standard deviations from MLB average · For entertainment only</div>
+<script>
+function showTab(id) {
+  document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("tab-" + id).classList.add("active");
+  event.currentTarget.classList.add("active");
+}
+function showTopTab(id) {
+  document.querySelectorAll(".top-tab-panel").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".top-tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("tab-" + id).classList.add("active");
+  event.currentTarget.classList.add("active");
+}
+</script>
+</body>
+</html>

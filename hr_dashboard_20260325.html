@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>⚾ HR Model · Wednesday, March 25, 2026</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:#030305;color:#e2e8f0;padding:32px 28px;min-width:960px}
+
+/* Date */
+.date-banner{text-align:center;margin-bottom:32px;padding:24px 0;border-bottom:1px solid #0f172a}
+.date-main{font-size:42px;font-weight:900;letter-spacing:-1px;background:linear-gradient(135deg,#fff,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.date-sub{color:#334155;font-size:14px;margin-top:6px;letter-spacing:.05em;text-transform:uppercase}
+
+/* Stats */
+.stats{display:flex;gap:12px;margin-bottom:32px;justify-content:center}
+.stat{background:#0d1117;border:1px solid #1e293b;border-radius:12px;padding:14px 28px;text-align:center}
+.stat-n{font-size:28px;font-weight:800}
+.stat-l{font-size:11px;color:#475569;margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+
+/* Top 10 */
+.section-title{font-size:18px;font-weight:800;margin-bottom:14px;color:#f1f5f9;letter-spacing:-.3px}
+.top10-grid{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:36px}
+.top-card{background:#0d1117;border:1px solid #1e293b;border-radius:12px;padding:16px;min-width:160px;flex-shrink:0;position:relative}
+.top-card:hover{border-color:#334155}
+.top-rank{position:absolute;top:10px;right:12px;font-size:11px;color:#334155;font-weight:700}
+.top-name{font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:3px}
+.top-meta{font-size:11px;color:#475569;margin-bottom:2px}
+.top-time{font-size:11px;color:#334155;margin-bottom:10px}
+.top-prob{font-size:26px;font-weight:900;color:#60a5fa;line-height:1}
+.top-edge{font-size:13px;font-weight:700;margin-top:2px}
+
+/* Tabs */
+.tabs-wrap{margin-bottom:0}
+.tab-buttons{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0;border-bottom:1px solid #1e293b;padding-bottom:0}
+.tab-btn{padding:10px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;background:#0a0a0f;color:#475569;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;margin-bottom:-1px}
+.tab-btn:hover{color:#94a3b8;background:#0d1117}
+.tab-btn.active{background:#0d1117;color:#e2e8f0;border-color:#1e293b}
+.tab-teams{display:block;font-weight:700}
+.tab-time{display:block;font-size:10px;color:#475569;margin-top:2px}
+.tab-content{display:none;border:1px solid #1e293b;border-top:none;border-radius:0 0 12px 12px;overflow:hidden}
+.tab-content.active{display:block}
+
+/* Game header */
+.game-header{background:#0a0a0f;padding:16px 20px;border-bottom:1px solid #1e293b}
+.game-matchup{font-size:22px;font-weight:900;margin-bottom:8px}
+.game-info{display:flex;gap:8px;flex-wrap:wrap}
+.info-pill{background:#111827;border:1px solid #1e293b;border-radius:20px;padding:4px 12px;font-size:12px;color:#94a3b8}
+
+/* Table */
+.table-wrap{overflow:hidden}
+table{width:100%;border-collapse:collapse;background:#080810}
+thead{background:#0a0a0f}
+th{padding:10px 16px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#334155;font-weight:700;border-bottom:1px solid #1e293b}
+td{padding:12px 16px;border-top:1px solid #0d1117;vertical-align:middle}
+tr:hover td{background:#0a0a0f}
+.pname{font-weight:700;font-size:14px;color:#f1f5f9}
+.pmeta{font-size:11px;color:#475569;margin-top:2px}
+.prob-wrap{display:flex;align-items:center;gap:8px}
+.bar-bg{width:60px;height:5px;background:#1e293b;border-radius:3px;flex-shrink:0}
+.bar-fill{height:5px;border-radius:3px}
+.badge{padding:3px 10px;border-radius:20px;font-size:13px;font-weight:800;display:inline-block}
+.chip{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block}
+.chip-hot{background:#431407;color:#fb923c;border:1px solid #9a3412}
+.chip-good{background:#052e16;color:#4ade80;border:1px solid #166534}
+.chip-mid{background:#1c1917;color:#fbbf24;border:1px solid #44403c}
+.chip-bad{background:#1f0707;color:#f87171;border:1px solid #7f1d1d}
+.chip-model{background:#0c1a2e;color:#60a5fa;border:1px solid #1e40af}
+.chip-na{background:#111;color:#475569;border:1px solid #1e293b}
+.reason{color:#475569;font-size:11px;margin-top:3px;line-height:1.5}
+.footer{margin-top:20px;color:#1e293b;font-size:11px;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="date-banner">
+  <div class="date-main">Wednesday, March 25, 2026</div>
+  <div class="date-sub">⚾ MLB Home Run Model &nbsp;·&nbsp; 1 Games Today</div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-n">0</div><div class="stat-l">Players Scored</div></div>
+  <div class="stat"><div class="stat-n">1</div><div class="stat-l">Games Today</div></div>
+  <div class="stat"><div class="stat-n" style="color:#22c55e">0</div><div class="stat-l">Value Picks</div></div>
+  <div class="stat"><div class="stat-n" style="color:#f97316">0</div><div class="stat-l">Strong Picks</div></div>
+</div>
+
+<div class="section-title">🏆 Top 10 Picks Today</div>
+<div class="top10-grid"></div>
+
+<div class="section-title">📋 Games</div>
+<div class="tabs-wrap">
+  <div class="tab-buttons">
+        <button class="tab-btn active" onclick="showTab('NYY@SF', this)">
+          <span class="tab-teams">NYY @ SF</span>
+          <span class="tab-time">8:05 PM ET</span>
+        </button></div>
+  
+        <div class="tab-content active" id="tab-NYY@SF">
+          <div class="game-header">
+            <div class="game-matchup">NYY <span style="color:#334155">@</span> SF</div>
+            <div class="game-info">
+              <span class="info-pill">🕐 8:05 PM ET</span>
+              <span class="info-pill">⚾ Max Fried vs Logan Webb</span>
+              <span class="info-pill">🌡 67°F · 16 mph wind</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Batter</th><th>Pitcher</th>
+                <th style="text-align:center">FanDuel</th>
+                <th>Model Prob</th>
+                <th style="text-align:center">Edge</th>
+                <th>Rating & Reasons</th>
+              </tr></thead>
+              <tbody><tr><td colspan="6" style="color:#475569;text-align:center;padding:24px">No model data for this game yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+</div>
+
+<div class="footer">Positive edge = model thinks FanDuel is underpricing this prop · Rerun dashboard.py to refresh</div>
+
+<script>
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body></html>

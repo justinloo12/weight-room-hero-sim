@@ -1,0 +1,6 @@
+homerun_data_all.csv
+homerun_data_enriched.csv
+__pycache__/
+.venv/
+*.pyc
+props.csv
