@@ -24,6 +24,7 @@ HITTER_FEATURES = [
     "h_exit_velo",        # average exit velocity
     "h_hard_hit_pct",     # hard hit rate (95+ mph EV)
     "h_launch_angle",     # average launch angle
+    "h_sweet_spot_pct",   # ideal launch-angle band frequency
     "h_pull_air_pct",     # pull-side fly ball rate
     "h_hr_rate",          # overall HR rate
     # vs pitch types (equal weight)
@@ -50,6 +51,8 @@ PITCHER_FEATURES = [
     "p_barrel_pct_allowed",
     "p_hard_hit_pct_allowed",
     "p_exit_velo_allowed",
+    "p_launch_angle_allowed",
+    "p_sweet_spot_pct_allowed",
     "p_pull_air_pct_allowed",
     # Pitch characteristics
     "p_spin_into_barrel_pct",
@@ -81,17 +84,46 @@ PITCHER_FEATURES = [
     "p_cutter_usage_rhh",
     "p_cutter_usage_lhh",
 ]
- 
+
+MATCHUP_FEATURES = [
+    "m_sweet_spot_contact_edge",
+    "m_zone_attack_edge",
+    "p_4seam_usage_matchup",
+    "p_sinker_usage_matchup",
+    "p_slider_usage_matchup",
+    "p_change_usage_matchup",
+    "p_curve_usage_matchup",
+    "p_cutter_usage_matchup",
+    "m_4seam_hr_exposure",
+    "m_4seam_xwoba_exposure",
+    "m_4seam_ev_delta",
+    "m_sinker_hr_exposure",
+    "m_sinker_xwoba_exposure",
+    "m_sinker_ev_delta",
+    "m_slider_hr_exposure",
+    "m_slider_xwoba_exposure",
+    "m_slider_ev_delta",
+    "m_change_hr_exposure",
+    "m_change_xwoba_exposure",
+    "m_change_ev_delta",
+    "m_curve_hr_exposure",
+    "m_curve_xwoba_exposure",
+    "m_curve_ev_delta",
+    "m_cutter_hr_exposure",
+    "m_cutter_xwoba_exposure",
+    "m_cutter_ev_delta",
+]
+
 CONTEXT_FEATURES = [
     "batter_right", "pitcher_right", "ballpark_code",
     "is_coors", "temp_f", "humidity", "wind_speed", "wind_dir",
 ]
  
-all_features = HITTER_FEATURES + PITCHER_FEATURES + CONTEXT_FEATURES
+all_features = HITTER_FEATURES + PITCHER_FEATURES + MATCHUP_FEATURES + CONTEXT_FEATURES
 features = [f for f in all_features if f in df.columns]
  
 print(f"\nUsing {len(features)} features:")
-for name, group in [("Hitter", HITTER_FEATURES), ("Pitcher", PITCHER_FEATURES), ("Context", CONTEXT_FEATURES)]:
+for name, group in [("Hitter", HITTER_FEATURES), ("Pitcher", PITCHER_FEATURES), ("Matchup", MATCHUP_FEATURES), ("Context", CONTEXT_FEATURES)]:
     found   = [f for f in group if f in df.columns]
     missing = [f for f in group if f not in df.columns]
     print(f"  {name}: {len(found)}/{len(group)}", end="")
