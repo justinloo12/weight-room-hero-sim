@@ -394,8 +394,53 @@ weather_cache = {}
 cache_path = Path("homerun_data_enriched.csv")
 if cache_path.exists():
     try:
-        cached = pd.read_csv(cache_path, usecols=["game_date", "home_team"] + WEATHER_FIELDS)
-        cached["game_date"] = pd.to_datetime(cached["game_date"])
+        cached = pd.read_csv(
+            cache_path,
+            usecols=lambda c: c in {"game_date", "home_team", *WEATHER_FIELDS},
+            on_bad_lines="skip",
+            low_memory=False,
+        )
+        cached["game_date"] = pd.to_datetime(cached["game_date"], errors="coerce", format="mixed")
         cached = cached.dropna(subset=["game_date", "home_team"]).drop_duplicates(["game_date", "home_team"])
         for _, row in cached.iterrows():
             weather_cache[(row["game_date"], row["home_team"])] = {
+                field: row[field] for field in WEATHER_FIELDS if field in row and not pd.isna(row[field])
+            }
+        print(f"Loaded cached weather for {len(weather_cache)} game/team pairs from homerun_data_enriched.csv")
+    except Exception as e:
+        print(f"  Weather cache load failed: {e}")
+
+games_list = final[["game_date", "home_team"]].drop_duplicates()
+missing_games = [
+    (row["game_date"], row["home_team"])
+    for _, row in games_list.iterrows()
+    if len(weather_cache.get((row["game_date"], row["home_team"]), {})) < len(WEATHER_FIELDS)
+]
+
+if missing_games:
+    print(f"Fetching weather data for {len(missing_games)} missing game/team pairs...")
+    for i, (game_date, team) in enumerate(missing_games):
+        if i % 50 == 0:
+            print(f"  Weather: {i}/{len(missing_games)} games...")
+        weather_cache[(game_date, team)] = get_weather(game_date, team)
+else:
+    print("Using cached historical weather for all games.")
+
+weather_rows = [
+    {"game_date": game_date, "home_team": team, **{field: payload.get(field, np.nan) for field in WEATHER_FIELDS}}
+    for (game_date, team), payload in weather_cache.items()
+]
+weather_df = pd.DataFrame(weather_rows).drop_duplicates(["game_date", "home_team"])
+final = final.drop(columns=[field for field in WEATHER_FIELDS if field in final.columns], errors="ignore")
+final = final.merge(weather_df, on=["game_date", "home_team"], how="left")
+
+# ── Save ──────────────────────────────────────────────────────
+hitter.to_csv("hitter_profiles.csv",      index=False)
+pitcher.to_csv("pitcher_profiles.csv",    index=False)
+final.to_csv("homerun_data_enriched.csv", index=False)
+
+print(f"\nDone!")
+print(f"  Enriched data: {len(final):,} rows, {len(final.columns)} features")
+print(f"  Hitter profiles:  {len(hitter):,} players")
+print(f"  Pitcher profiles: {len(pitcher):,} players")
+print("  Saved: hitter_profiles.csv, pitcher_profiles.csv, homerun_data_enriched.csv")
