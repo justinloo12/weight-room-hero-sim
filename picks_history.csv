@@ -1,3 +1,5 @@
 date,pick_type,player,batter_id,team,game,pitcher,sportsbook,book_odds,model_prob,book_implied,edge,stake,result,pnl
 2026-03-27,best_value,Kyle Manzardo,700932,CLE,CLE @ SEA,George Kirby,BetMGM,650,17.30,13.33,3.97,100.00,,
 2026-03-27,highest_probability,Riley Greene,682985,DET,DET @ SD,Michael King,BetMGM,425,20.42,19.05,1.37,100.00,,
+2026-03-28,best_value,Jared Young,676724,NYM,PIT @ NYM,Mitch Keller,BetMGM,1550,12.68,6.06,6.62,100.00,,
+2026-03-28,highest_probability,Michael Busch,683737,CHC,WSH @ CHC,Miles Mikolas,BetMGM,220,21.27,31.25,-9.98,100.00,,
