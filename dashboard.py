@@ -1239,17 +1239,28 @@ def tracked_pick_summary_html():
             if r.get("pick_type") == pick_type and r.get("date") == today
         ]
         today_picks = sorted(today_picks, key=lambda r: int(r.get("rank", "0") or 0))
-        today_line = (
-            "Today: " + ", ".join(f'#{r.get("rank")} {r.get("player","—")}' for r in today_picks[:3]) +
+        current_line = (
+            "Current tracked list: " + ", ".join(f'#{r.get("rank")} {r.get("player","—")}' for r in today_picks[:3]) +
             (" ..." if len(today_picks) > 3 else "")
-        ) if today_picks else "Today: no tracked picks yet"
+        ) if today_picks else "Current tracked list: no picks saved yet"
+
+        settled_dates = sorted({r.get("date") for r in resolved if r.get("date")})
+        latest_settled = settled_dates[-1] if settled_dates else ""
+        latest_subset = [r for r in resolved if r.get("date") == latest_settled] if latest_settled else []
+        l_wins, l_total, l_pnl, l_roi = summarize(latest_subset) if latest_subset else (0, 0, 0.0, 0.0)
+        latest_line = (
+            f"Latest settled slate ({latest_settled}): {l_wins}/{l_total} · ROI {l_roi:+.1f}% · Profit ${l_pnl:+.0f}"
+            if latest_subset else
+            "Latest settled slate: none yet"
+        )
         cards.append(
             f'<div class="track-card">'
             f'<div class="track-title">{label}</div>'
             f'<div class="track-record">{wins}/{total}</div>'
             f'<div class="track-meta">Hit rate {(wins / total * 100 if total else 0):.1f}% · ROI {roi:+.1f}%</div>'
             f'<div class="track-submeta">Last 7 days: {r_wins}/{r_total} · ROI {r_roi:+.1f}% · Profit ${pnl_total:+.0f}</div>'
-            f'<div class="track-pick">{today_line}</div>'
+            f'<div class="track-submeta">{latest_line}</div>'
+            f'<div class="track-pick">{current_line}</div>'
             f'</div>'
         )
 
