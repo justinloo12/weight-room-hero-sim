@@ -1605,7 +1605,7 @@ def generate_html(all_preds, games):
     top_picks_tabs = f"""
   <div class="tab-bar top-tab-bar">
     <button class="top-tab-btn active" onclick="showTopTab('prob')">🎯 Highest Probability</button>
-    <button class="top-tab-btn" onclick="showTopTab('edge')">💰 Best Value / Edge <span class="tab-hint">(10%+ prob · 2.5%+ edge · +900 max)</span></button>
+    <button class="top-tab-btn" onclick="showTopTab('edge')">💰 Best Value / Edge <span class="tab-hint">(10%+ prob · 2.5%+ edge · +1200 max)</span></button>
   </div>
   <div id="tab-prob" class="top-tab-panel active">{top_prob_html}</div>
   <div id="tab-edge" class="top-tab-panel">{top_edge_html}</div>"""
