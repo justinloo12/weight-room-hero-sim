@@ -19,33 +19,51 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-03-27,highest_probability_top10,8,Cal Raleigh,663728,SEA,CLE @ SEA,Gavin Williams,,260,16.70,27.78,-11.10,100.00,No HR,-100.00
 2026-03-27,highest_probability_top10,9,Max Muncy,571970,LAD,AZ @ LAD,Ryne Nelson,,320,16.00,23.81,-7.80,100.00,No HR,-100.00
 2026-03-27,highest_probability_top10,10,Shohei Ohtani,660271,LAD,AZ @ LAD,Ryne Nelson,,170,16.00,37.04,-21.10,100.00,No HR,-100.00
-2026-03-28,best_value_top10,1,Jared Young,676724,NYM,PIT @ NYM,Mitch Keller,William Hill,1500,12.68,6.25,6.43,100.00,,
-2026-03-28,best_value_top10,2,Miguel Amaya,665804,CHC,WSH @ CHC,Miles Mikolas,Hard Rock Bet,750,19.43,11.76,7.67,100.00,,
-2026-03-28,best_value_top10,3,Moisés Ballesteros,694208,CHC,WSH @ CHC,Miles Mikolas,William Hill,700,17.05,12.50,4.55,100.00,,
-2026-03-28,best_value_top10,4,Justin Crawford,702222,PHI,TEX @ PHI,Jacob Latz,BetMGM,1350,9.28,6.90,2.38,100.00,,
-2026-03-28,best_value_top10,5,Eugenio Suárez,553993,CIN,BOS @ CIN,Sonny Gray,BetMGM,400,26.57,20.00,6.57,100.00,,
-2026-03-28,best_value_top10,6,Carson Benge,701807,NYM,PIT @ NYM,Mitch Keller,BetMGM,1150,10.46,8.00,2.46,100.00,,
-2026-03-28,best_value_top10,7,Michael Busch,683737,CHC,WSH @ CHC,Miles Mikolas,William Hill,305,30.00,24.69,5.31,100.00,,
-2026-03-28,best_value_top10,8,Juan Soto,665742,NYM,PIT @ NYM,Mitch Keller,BetMGM,400,22.80,20.00,2.80,100.00,,
-2026-03-28,best_value_top10,9,Gavin Sheets,657757,SD,DET @ SD,Jack Flaherty,BetMGM,675,16.19,12.90,3.29,100.00,,
-2026-03-28,best_value_top10,10,Brett Baty,683146,NYM,PIT @ NYM,Mitch Keller,BetMGM,875,12.70,10.26,2.44,100.00,,
-2026-03-28,highest_ev_top10,1,Munetaka Murakami,808959,CWS,CWS @ MIL,Chad Patrick,BetMGM,550,12.68,15.38,-2.70,100.00,,
-2026-03-28,highest_ev_top10,2,JJ Wetherholt,802139,STL,TB @ STL,Joe Boyle,BetMGM,800,12.68,11.11,1.57,100.00,,
-2026-03-28,highest_ev_top10,3,Aaron Judge,592450,NYY,NYY @ SF,Tyler Mahle,BetMGM,240,11.07,29.41,-18.34,100.00,,
-2026-03-28,highest_ev_top10,4,Sal Stewart,701398,CIN,BOS @ CIN,Sonny Gray,BetMGM,525,17.05,16.00,1.05,100.00,,
-2026-03-28,highest_ev_top10,5,Juan Soto,665742,NYM,PIT @ NYM,Mitch Keller,BetMGM,400,17.99,20.00,-2.01,100.00,,
-2026-03-28,highest_ev_top10,6,Kyle Schwarber,656941,PHI,TEX @ PHI,Jacob deGrom,BetMGM,320,18.80,23.81,-5.01,100.00,,
-2026-03-28,highest_ev_top10,7,Shohei Ohtani,660271,LAD,AZ @ LAD,Eduardo Rodriguez,betPARX,190,19.26,34.48,-15.22,100.00,,
-2026-03-28,highest_ev_top10,8,Francisco Alvarez,682626,NYM,PIT @ NYM,Mitch Keller,BetMGM,700,13.11,12.50,0.61,100.00,,
-2026-03-28,highest_ev_top10,9,Oneil Cruz,665833,PIT,PIT @ NYM,David Peterson,BetMGM,650,3.94,13.33,-9.39,100.00,,
-2026-03-28,highest_ev_top10,10,Pete Alonso,624413,BAL,MIN @ BAL,Taj Bradley,BetMGM,400,16.47,20.00,-3.53,100.00,,
-2026-03-28,highest_probability_top10,1,Michael Busch,683737,CHC,WSH @ CHC,Miles Mikolas,William Hill,305,30.00,24.69,5.31,100.00,,
-2026-03-28,highest_probability_top10,2,Eugenio Suárez,553993,CIN,BOS @ CIN,Sonny Gray,BetMGM,400,26.57,20.00,6.57,100.00,,
-2026-03-28,highest_probability_top10,3,Shohei Ohtani,660271,LAD,AZ @ LAD,Eduardo Rodriguez,BetMGM,170,26.06,37.04,-10.98,100.00,,
-2026-03-28,highest_probability_top10,4,Kyle Schwarber,656941,PHI,TEX @ PHI,Jacob Latz,BetMGM,320,23.58,23.81,-0.23,100.00,,
-2026-03-28,highest_probability_top10,5,Juan Soto,665742,NYM,PIT @ NYM,Mitch Keller,BetMGM,400,22.80,20.00,2.80,100.00,,
-2026-03-28,highest_probability_top10,6,George Springer,543807,TOR,ATH @ TOR,Jeffrey Springs,BetMGM,333,21.21,23.09,-1.88,100.00,,
-2026-03-28,highest_probability_top10,7,Miguel Amaya,665804,CHC,WSH @ CHC,Miles Mikolas,Hard Rock Bet,750,19.43,11.76,7.67,100.00,,
-2026-03-28,highest_probability_top10,8,Cal Raleigh,663728,SEA,CLE @ SEA,Joey Cantillo,BetMGM,270,18.88,27.03,-8.15,100.00,,
-2026-03-28,highest_probability_top10,9,Pete Crow-Armstrong,691718,CHC,WSH @ CHC,Miles Mikolas,William Hill,390,18.60,20.41,-1.81,100.00,,
-2026-03-28,highest_probability_top10,10,Corey Seager,608369,TEX,TEX @ PHI,Aaron Nola,BetMGM,400,18.21,20.00,-1.79,100.00,,
+2026-03-28,best_value_top10,1,Jared Young,676724,NYM,PIT @ NYM,Mitch Keller,William Hill,1500,12.68,6.25,6.43,100.00,No HR,-100.00
+2026-03-28,best_value_top10,2,Miguel Amaya,665804,CHC,WSH @ CHC,Miles Mikolas,Hard Rock Bet,750,19.43,11.76,7.67,100.00,HR,750.00
+2026-03-28,best_value_top10,3,Moisés Ballesteros,694208,CHC,WSH @ CHC,Miles Mikolas,William Hill,700,17.05,12.50,4.55,100.00,No HR,-100.00
+2026-03-28,best_value_top10,4,Justin Crawford,702222,PHI,TEX @ PHI,Jacob Latz,BetMGM,1350,9.28,6.90,2.38,100.00,No HR,-100.00
+2026-03-28,best_value_top10,5,Eugenio Suárez,553993,CIN,BOS @ CIN,Sonny Gray,BetMGM,400,26.57,20.00,6.57,100.00,No HR,-100.00
+2026-03-28,best_value_top10,6,Carson Benge,701807,NYM,PIT @ NYM,Mitch Keller,BetMGM,1150,10.46,8.00,2.46,100.00,No HR,-100.00
+2026-03-28,best_value_top10,7,Michael Busch,683737,CHC,WSH @ CHC,Miles Mikolas,William Hill,305,30.00,24.69,5.31,100.00,No HR,-100.00
+2026-03-28,best_value_top10,8,Juan Soto,665742,NYM,PIT @ NYM,Mitch Keller,BetMGM,400,22.80,20.00,2.80,100.00,No HR,-100.00
+2026-03-28,best_value_top10,9,Gavin Sheets,657757,SD,DET @ SD,Jack Flaherty,BetMGM,675,16.19,12.90,3.29,100.00,No HR,-100.00
+2026-03-28,best_value_top10,10,Brett Baty,683146,NYM,PIT @ NYM,Mitch Keller,BetMGM,875,12.70,10.26,2.44,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,1,Munetaka Murakami,808959,CWS,CWS @ MIL,Chad Patrick,BetMGM,550,12.68,15.38,-2.70,100.00,HR,550.00
+2026-03-28,highest_ev_top10,2,JJ Wetherholt,802139,STL,TB @ STL,Joe Boyle,BetMGM,800,12.68,11.11,1.57,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,3,Aaron Judge,592450,NYY,NYY @ SF,Tyler Mahle,BetMGM,240,11.07,29.41,-18.34,100.00,HR,240.00
+2026-03-28,highest_ev_top10,4,Sal Stewart,701398,CIN,BOS @ CIN,Sonny Gray,BetMGM,525,17.05,16.00,1.05,100.00,HR,525.00
+2026-03-28,highest_ev_top10,5,Juan Soto,665742,NYM,PIT @ NYM,Mitch Keller,BetMGM,400,17.99,20.00,-2.01,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,6,Kyle Schwarber,656941,PHI,TEX @ PHI,Jacob deGrom,BetMGM,320,18.80,23.81,-5.01,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,7,Shohei Ohtani,660271,LAD,AZ @ LAD,Eduardo Rodriguez,betPARX,190,19.26,34.48,-15.22,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,8,Francisco Alvarez,682626,NYM,PIT @ NYM,Mitch Keller,BetMGM,700,13.11,12.50,0.61,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,9,Oneil Cruz,665833,PIT,PIT @ NYM,David Peterson,BetMGM,650,3.94,13.33,-9.39,100.00,No HR,-100.00
+2026-03-28,highest_ev_top10,10,Pete Alonso,624413,BAL,MIN @ BAL,Taj Bradley,BetMGM,400,16.47,20.00,-3.53,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,1,Michael Busch,683737,CHC,WSH @ CHC,Miles Mikolas,William Hill,305,30.00,24.69,5.31,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,2,Eugenio Suárez,553993,CIN,BOS @ CIN,Sonny Gray,BetMGM,400,26.57,20.00,6.57,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,3,Shohei Ohtani,660271,LAD,AZ @ LAD,Eduardo Rodriguez,BetMGM,170,26.06,37.04,-10.98,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,4,Kyle Schwarber,656941,PHI,TEX @ PHI,Jacob Latz,BetMGM,320,23.58,23.81,-0.23,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,5,Juan Soto,665742,NYM,PIT @ NYM,Mitch Keller,BetMGM,400,22.80,20.00,2.80,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,6,George Springer,543807,TOR,ATH @ TOR,Jeffrey Springs,BetMGM,333,21.21,23.09,-1.88,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,7,Miguel Amaya,665804,CHC,WSH @ CHC,Miles Mikolas,Hard Rock Bet,750,19.43,11.76,7.67,100.00,HR,750.00
+2026-03-28,highest_probability_top10,8,Cal Raleigh,663728,SEA,CLE @ SEA,Joey Cantillo,BetMGM,270,18.88,27.03,-8.15,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,9,Pete Crow-Armstrong,691718,CHC,WSH @ CHC,Miles Mikolas,William Hill,390,18.60,20.41,-1.81,100.00,No HR,-100.00
+2026-03-28,highest_probability_top10,10,Corey Seager,608369,TEX,TEX @ PHI,Aaron Nola,BetMGM,400,18.21,20.00,-1.79,100.00,HR,400.00
+2026-03-29,best_value_top10,1,Justin Crawford,702222,PHI,TEX @ PHI,MacKenzie Gore,BetMGM,1300,10.02,7.14,2.88,100.00,,
+2026-03-29,best_value_top10,2,Blake Perkins,663368,MIL,CWS @ MIL,Anthony Kay,BetMGM,1150,10.97,8.00,2.97,100.00,,
+2026-03-29,best_value_top10,3,Heriberto Hernández,681715,MIA,COL @ MIA,Jose Quintana,BetMGM,650,17.81,13.33,4.48,100.00,,
+2026-03-29,best_value_top10,4,Jared Young,676724,NYM,PIT @ NYM,Carmen Mlodzinski,BetMGM,1250,9.72,7.41,2.31,100.00,,
+2026-03-29,best_value_top10,5,Carson Williams,700246,TB,TB @ STL,Dustin May,BetMGM,850,13.71,10.53,3.18,100.00,,
+2026-03-29,best_value_top10,6,Richie Palacios,680700,TB,TB @ STL,Dustin May,BetMGM,1100,10.74,8.33,2.41,100.00,,
+2026-03-29,best_value_top10,7,Brenton Doyle,686668,COL,COL @ MIA,Max Meyer,BetMGM,850,12.99,10.53,2.46,100.00,,
+2026-03-29,best_value_top10,8,Hunter Goodman,696100,COL,COL @ MIA,Max Meyer,BetMGM,450,22.00,18.18,3.82,100.00,,
+2026-03-29,highest_probability_top10,1,Hunter Goodman,696100,COL,COL @ MIA,Max Meyer,BetMGM,450,22.00,18.18,3.82,100.00,,
+2026-03-29,highest_probability_top10,2,Nick Kurtz,701762,ATH,ATH @ TOR,Eric Lauer,BetMGM,400,22.00,20.00,2.00,100.00,,
+2026-03-29,highest_probability_top10,3,Daulton Varsho,662139,TOR,ATH @ TOR,Luis Morales,BetMGM,360,22.00,21.74,0.26,100.00,,
+2026-03-29,highest_probability_top10,4,James Wood,695578,WSH,WSH @ CHC,Shota Imanaga,BetMGM,350,22.00,22.22,-0.22,100.00,,
+2026-03-29,highest_probability_top10,5,George Springer,543807,TOR,ATH @ TOR,Luis Morales,BetMGM,300,22.00,25.00,-3.00,100.00,,
+2026-03-29,highest_probability_top10,6,Cal Raleigh,663728,SEA,CLE @ SEA,Slade Cecconi,BetMGM,260,22.00,27.78,-5.78,100.00,,
+2026-03-29,highest_probability_top10,7,Kyle Schwarber,656941,PHI,TEX @ PHI,MacKenzie Gore,BetMGM,250,22.00,28.57,-6.57,100.00,,
+2026-03-29,highest_probability_top10,8,Taylor Ward,621493,BAL,MIN @ BAL,Bailey Ober,BetMGM,340,21.94,22.73,-0.79,100.00,,
+2026-03-29,highest_probability_top10,9,Michael Busch,683737,CHC,WSH @ CHC,Jake Irvin,BetMGM,230,21.52,30.30,-8.78,100.00,,
+2026-03-29,highest_probability_top10,10,Pete Crow-Armstrong,691718,CHC,WSH @ CHC,Jake Irvin,BetMGM,280,19.90,26.32,-6.42,100.00,,
