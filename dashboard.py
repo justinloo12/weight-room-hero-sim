@@ -867,7 +867,11 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         n_pa = 3.5
         prob_raw_clamped = max(0.001, min(0.25, prob_raw))
         prob = (1.0 - (1.0 - prob_raw_clamped) ** n_pa) * 100
-        prob = max(2.0, min(25.0, prob))
+        # Soft-compress the very top end instead of hard-capping a bunch of hitters
+        # at exactly the same displayed probability.
+        if prob > 22.0:
+            prob = 22.0 + (prob - 22.0) * 0.45
+        prob = max(2.0, min(26.0, prob))
  
     else:
         # --- Z-score fallback (no trained model) ---
