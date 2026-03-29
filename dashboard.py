@@ -865,9 +865,9 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         #   p_ab=0.020 →  6.7%  p_ab=0.034 → 11%
         #   p_ab=0.060 → 19%    p_ab=0.090 → 28%  p_ab=0.120 → 35%→cap
         n_pa = 3.5
-        prob_raw_clamped = max(0.001, min(0.22, prob_raw))
+        prob_raw_clamped = max(0.001, min(0.25, prob_raw))
         prob = (1.0 - (1.0 - prob_raw_clamped) ** n_pa) * 100
-        prob = max(2.0, min(22.0, prob))
+        prob = max(2.0, min(25.0, prob))
  
     else:
         # --- Z-score fallback (no trained model) ---
