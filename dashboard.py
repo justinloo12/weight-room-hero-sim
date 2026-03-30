@@ -1314,16 +1314,21 @@ def update_picks_history(all_preds):
     if not candidates:
         print("No priced picks available to track today.")
         return
-    fieldnames = [
+    base_fieldnames = [
         "date", "pick_type", "rank", "player", "batter_id", "team", "game", "pitcher",
         "sportsbook", "book_odds", "model_prob", "book_implied", "edge",
         "stake", "result", "pnl"
     ]
 
     rows = []
+    fieldnames = list(base_fieldnames)
     if PICKS_HISTORY.exists():
         with open(PICKS_HISTORY, newline="") as f:
             rows = list(csv.DictReader(f))
+            if rows:
+                for key in rows[0].keys():
+                    if key not in fieldnames:
+                        fieldnames.append(key)
 
     by_key = {}
     for row in rows:
@@ -1375,6 +1380,9 @@ def update_picks_history(all_preds):
                 "result": existing.get("result", ""),
                 "pnl": existing.get("pnl", ""),
             }
+            for extra_key in fieldnames:
+                if extra_key not in updated:
+                    updated[extra_key] = existing.get(extra_key, "")
             by_key[key] = updated
 
     ordered_rows = sorted(by_key.values(), key=lambda r: (r.get("date", ""), r.get("pick_type", ""), int(r.get("rank", "0") or 0)))
