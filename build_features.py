@@ -3,6 +3,58 @@ import numpy as np
 import requests
 from pathlib import Path
 
+PITCH_LABELS = [
+    ("FF", "4seam"),
+    ("SI", "sinker"),
+    ("SL", "slider"),
+    ("CH", "change"),
+    ("CU", "curve"),
+    ("FC", "cutter"),
+]
+
+
+def hitter_contact_score(df_like, ev_col):
+    ev_bonus = ((df_like[ev_col] - 88.0) / 8.0).clip(lower=0)
+    return (
+        df_like["barrel_pct"] * 0.35
+        + df_like["sweet_spot_pct"] * 0.25
+        + df_like["hard_hit_pct"] * 0.20
+        + df_like["pull_air_pct"] * 0.20
+        + ev_bonus * 0.10
+    )
+
+
+def hitter_lift_score(df_like):
+    launch_window = ((16.0 - (df_like["launch_angle"] - 18.0).abs()) / 16.0).clip(lower=0)
+    return (
+        df_like["barrel_pct"] * 0.45
+        + df_like["sweet_spot_pct"] * 0.30
+        + df_like["pull_air_pct"] * 0.15
+        + launch_window * 0.10
+    )
+
+
+def pitcher_contact_risk(df_like, ev_col):
+    ev_risk = ((df_like[ev_col] - 88.0) / 8.0).clip(lower=0)
+    return (
+        df_like["barrel_pct_allowed"] * 0.30
+        + df_like["hard_hit_pct_allowed"] * 0.20
+        + df_like["sweet_spot_pct_allowed"] * 0.20
+        + df_like["pull_air_pct_allowed"] * 0.15
+        + df_like["hr_rate_allowed"] * 0.15
+        + ev_risk * 0.10
+    )
+
+
+def pitcher_lift_risk(df_like):
+    launch_window = ((16.0 - (df_like["launch_angle_allowed"] - 18.0).abs()) / 16.0).clip(lower=0)
+    return (
+        df_like["sweet_spot_pct_allowed"] * 0.35
+        + df_like["pull_air_pct_allowed"] * 0.25
+        + launch_window * 0.20
+        + df_like["barrel_pct_allowed"] * 0.20
+    )
+
 print("Loading raw data...")
 df = pd.read_csv("homerun_data_all.csv").copy()
 print("Columns available:", list(df.columns))
@@ -106,21 +158,16 @@ hitter = batted.groupby("batter").agg(
     h_n_batted     = ("launch_speed", "count"),
 ).reset_index()
 
-h_ev_bonus = ((hitter["h_exit_velo"] - 88.0) / 8.0).clip(lower=0)
-h_launch_window = ((16.0 - (hitter["h_launch_angle"] - 18.0).abs()) / 16.0).clip(lower=0)
-hitter["h_hr_contact_score"] = (
-    hitter["h_barrel_pct"] * 0.35
-    + hitter["h_sweet_spot_pct"] * 0.25
-    + hitter["h_hard_hit_pct"] * 0.20
-    + hitter["h_pull_air_pct"] * 0.20
-    + h_ev_bonus * 0.10
-)
-hitter["h_lifted_power_score"] = (
-    hitter["h_barrel_pct"] * 0.45
-    + hitter["h_sweet_spot_pct"] * 0.30
-    + hitter["h_pull_air_pct"] * 0.15
-    + h_launch_window * 0.10
-)
+_hitter_scores = hitter.rename(columns={
+    "h_barrel_pct": "barrel_pct",
+    "h_sweet_spot_pct": "sweet_spot_pct",
+    "h_hard_hit_pct": "hard_hit_pct",
+    "h_pull_air_pct": "pull_air_pct",
+    "h_launch_angle": "launch_angle",
+    "h_exit_velo": "exit_velo",
+})
+hitter["h_hr_contact_score"] = hitter_contact_score(_hitter_scores, "exit_velo")
+hitter["h_lifted_power_score"] = hitter_lift_score(_hitter_scores)
 
 if "stand" in all_pitches.columns:
     batter_hand = all_pitches.groupby("batter").agg(
@@ -162,11 +209,50 @@ for hand, label in [("R", "rhp"), ("L", "lhp")]:
     platoon = batted[batted["p_throws"] == hand].groupby("batter").agg(
         hr_rate   = ("is_homerun",   "mean"),
         exit_velo = ("launch_speed", "mean"),
+        barrel_pct = ("barrel", "mean"),
+        hard_hit_pct = ("hard_hit", "mean"),
+        launch_angle = ("launch_angle", "mean"),
+        sweet_spot_pct = ("sweet_spot", "mean"),
+        pull_air_pct = ("pull_air", "mean"),
+        n_batted = ("launch_speed", "count"),
     ).reset_index().rename(columns={
         "hr_rate":   f"h_hr_vs_{label}",
         "exit_velo": f"h_ev_vs_{label}",
+        "barrel_pct": f"h_barrel_pct_vs_{label}",
+        "hard_hit_pct": f"h_hard_hit_pct_vs_{label}",
+        "launch_angle": f"h_launch_angle_vs_{label}",
+        "sweet_spot_pct": f"h_sweet_spot_pct_vs_{label}",
+        "pull_air_pct": f"h_pull_air_pct_vs_{label}",
+        "n_batted": f"h_n_batted_vs_{label}",
     })
     hitter = hitter.merge(platoon, on="batter", how="left")
+
+    if "estimated_woba_using_speedangle" in batted.columns:
+        xw = batted[batted["p_throws"] == hand].groupby("batter")["estimated_woba_using_speedangle"].mean().reset_index().rename(
+            columns={"estimated_woba_using_speedangle": f"h_xwoba_vs_{label}"}
+        )
+        hitter = hitter.merge(xw, on="batter", how="left")
+
+for label in ["rhp", "lhp"]:
+    required = [
+        f"h_barrel_pct_vs_{label}",
+        f"h_sweet_spot_pct_vs_{label}",
+        f"h_hard_hit_pct_vs_{label}",
+        f"h_pull_air_pct_vs_{label}",
+        f"h_ev_vs_{label}",
+        f"h_launch_angle_vs_{label}",
+    ]
+    if all(col in hitter.columns for col in required):
+        split_scores = hitter.rename(columns={
+            f"h_barrel_pct_vs_{label}": "barrel_pct",
+            f"h_sweet_spot_pct_vs_{label}": "sweet_spot_pct",
+            f"h_hard_hit_pct_vs_{label}": "hard_hit_pct",
+            f"h_pull_air_pct_vs_{label}": "pull_air_pct",
+            f"h_ev_vs_{label}": "exit_velo",
+            f"h_launch_angle_vs_{label}": "launch_angle",
+        })
+        hitter[f"h_hr_contact_score_vs_{label}"] = hitter_contact_score(split_scores, "exit_velo")
+        hitter[f"h_lifted_power_score_vs_{label}"] = hitter_lift_score(split_scores)
 
 # xwOBA vs each pitch type (quality of contact metric)
 for pt, label in [("FF","4seam"), ("SI","sinker"), ("SL","slider"),
@@ -198,22 +284,17 @@ pitcher = batted.groupby("player_name").agg(
     p_n_faced              = ("launch_speed", "count"),
 ).reset_index()
 
-p_ev_risk = ((pitcher["p_exit_velo_allowed"] - 88.0) / 8.0).clip(lower=0)
-p_launch_window_allowed = ((16.0 - (pitcher["p_launch_angle_allowed"] - 18.0).abs()) / 16.0).clip(lower=0)
-pitcher["p_hr_contact_risk"] = (
-    pitcher["p_barrel_pct_allowed"] * 0.30
-    + pitcher["p_hard_hit_pct_allowed"] * 0.20
-    + pitcher["p_sweet_spot_pct_allowed"] * 0.20
-    + pitcher["p_pull_air_pct_allowed"] * 0.15
-    + pitcher["p_hr_rate_allowed"] * 0.15
-    + p_ev_risk * 0.10
-)
-pitcher["p_lift_damage_risk"] = (
-    pitcher["p_sweet_spot_pct_allowed"] * 0.35
-    + pitcher["p_pull_air_pct_allowed"] * 0.25
-    + p_launch_window_allowed * 0.20
-    + pitcher["p_barrel_pct_allowed"] * 0.20
-)
+_pitcher_scores = pitcher.rename(columns={
+    "p_barrel_pct_allowed": "barrel_pct_allowed",
+    "p_hard_hit_pct_allowed": "hard_hit_pct_allowed",
+    "p_sweet_spot_pct_allowed": "sweet_spot_pct_allowed",
+    "p_pull_air_pct_allowed": "pull_air_pct_allowed",
+    "p_hr_rate_allowed": "hr_rate_allowed",
+    "p_exit_velo_allowed": "exit_velo_allowed",
+    "p_launch_angle_allowed": "launch_angle_allowed",
+})
+pitcher["p_hr_contact_risk"] = pitcher_contact_risk(_pitcher_scores, "exit_velo_allowed")
+pitcher["p_lift_damage_risk"] = pitcher_lift_risk(_pitcher_scores)
 
 # Arm angle
 arm = all_pitches.groupby("player_name")["arm_angle"].mean().reset_index().rename(
@@ -283,6 +364,52 @@ for pt, label in [("FF","4seam"), ("SI","sinker"), ("SL","slider"),
     })
     pitcher = pitcher.merge(pitch_contact, on="player_name", how="left")
 
+for hand, label in [("R", "rhh"), ("L", "lhh")]:
+    if "stand" not in batted.columns:
+        break
+    side = batted[batted["stand"] == hand].groupby("player_name").agg(
+        hr_rate_allowed=("is_homerun", "mean"),
+        exit_velo_allowed=("launch_speed", "mean"),
+        barrel_pct_allowed=("barrel", "mean"),
+        hard_hit_pct_allowed=("hard_hit", "mean"),
+        launch_angle_allowed=("launch_angle", "mean"),
+        sweet_spot_pct_allowed=("sweet_spot", "mean"),
+        pull_air_pct_allowed=("pull_air", "mean"),
+        n_faced=("launch_speed", "count"),
+    ).reset_index().rename(columns={
+        "hr_rate_allowed": f"p_hr_rate_allowed_{label}",
+        "exit_velo_allowed": f"p_exit_velo_allowed_{label}",
+        "barrel_pct_allowed": f"p_barrel_pct_allowed_{label}",
+        "hard_hit_pct_allowed": f"p_hard_hit_pct_allowed_{label}",
+        "launch_angle_allowed": f"p_launch_angle_allowed_{label}",
+        "sweet_spot_pct_allowed": f"p_sweet_spot_pct_allowed_{label}",
+        "pull_air_pct_allowed": f"p_pull_air_pct_allowed_{label}",
+        "n_faced": f"p_n_faced_{label}",
+    })
+    pitcher = pitcher.merge(side, on="player_name", how="left")
+
+    required = [
+        f"p_barrel_pct_allowed_{label}",
+        f"p_hard_hit_pct_allowed_{label}",
+        f"p_sweet_spot_pct_allowed_{label}",
+        f"p_pull_air_pct_allowed_{label}",
+        f"p_hr_rate_allowed_{label}",
+        f"p_exit_velo_allowed_{label}",
+        f"p_launch_angle_allowed_{label}",
+    ]
+    if all(col in pitcher.columns for col in required):
+        side_scores = pitcher.rename(columns={
+            f"p_barrel_pct_allowed_{label}": "barrel_pct_allowed",
+            f"p_hard_hit_pct_allowed_{label}": "hard_hit_pct_allowed",
+            f"p_sweet_spot_pct_allowed_{label}": "sweet_spot_pct_allowed",
+            f"p_pull_air_pct_allowed_{label}": "pull_air_pct_allowed",
+            f"p_hr_rate_allowed_{label}": "hr_rate_allowed",
+            f"p_exit_velo_allowed_{label}": "exit_velo_allowed",
+            f"p_launch_angle_allowed_{label}": "launch_angle_allowed",
+        })
+        pitcher[f"p_hr_contact_risk_{label}"] = pitcher_contact_risk(side_scores, "exit_velo_allowed")
+        pitcher[f"p_lift_damage_risk_{label}"] = pitcher_lift_risk(side_scores)
+
 print(f"  Pitcher profiles: {len(pitcher)} players, {len(pitcher.columns)} features")
 
 # ── Matchup history ───────────────────────────────────────────
@@ -300,11 +427,17 @@ print("Merging features...")
 final = batted.merge(hitter,  on="batter",                  how="left")
 final = final.merge(pitcher,  on="player_name",             how="left")
 final = final.merge(matchup,  on=["batter", "player_name"], how="left")
+batter_right_series = (final["stand"] == "R").astype(int)
+pitcher_right_series = (final["p_throws"] == "R").astype(int)
+
+def col_or_nan(df, col):
+    return df[col] if col in df.columns else np.nan
+
 extra_cols = {
     "ballpark_code": final["home_team"].astype("category").cat.codes,
     "is_coors": (final["home_team"] == "COL").astype(int),
-    "batter_right": (final["stand"] == "R").astype(int),
-    "pitcher_right": (final["p_throws"] == "R").astype(int),
+    "batter_right": batter_right_series,
+    "pitcher_right": pitcher_right_series,
     "m_sweet_spot_contact_edge": final["h_sweet_spot_pct"] * final["p_sweet_spot_pct_allowed"],
     "m_zone_attack_edge": final["h_zone_contact_pct"] * final["p_in_zone_pct"],
     "m_barrel_matchup_score": final["h_barrel_pct"] * final["p_barrel_pct_allowed"],
@@ -314,7 +447,33 @@ extra_cols = {
     ) / 2.0,
     "m_hr_contact_matchup": final["h_hr_contact_score"] * final["p_hr_contact_risk"],
     "m_lifted_power_matchup": final["h_lifted_power_score"] * final["p_lift_damage_risk"],
+    "h_hr_rate_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_hr_vs_rhp"), col_or_nan(final, "h_hr_vs_lhp")),
+    "h_xwoba_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_xwoba_vs_rhp"), col_or_nan(final, "h_xwoba_vs_lhp")),
+    "h_barrel_pct_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_barrel_pct_vs_rhp"), col_or_nan(final, "h_barrel_pct_vs_lhp")),
+    "h_hard_hit_pct_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_hard_hit_pct_vs_rhp"), col_or_nan(final, "h_hard_hit_pct_vs_lhp")),
+    "h_launch_angle_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_launch_angle_vs_rhp"), col_or_nan(final, "h_launch_angle_vs_lhp")),
+    "h_sweet_spot_pct_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_sweet_spot_pct_vs_rhp"), col_or_nan(final, "h_sweet_spot_pct_vs_lhp")),
+    "h_pull_air_pct_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_pull_air_pct_vs_rhp"), col_or_nan(final, "h_pull_air_pct_vs_lhp")),
+    "h_hr_contact_score_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_hr_contact_score_vs_rhp"), col_or_nan(final, "h_hr_contact_score_vs_lhp")),
+    "h_lifted_power_score_vs_hand": np.where(final["p_throws"] == "R", col_or_nan(final, "h_lifted_power_score_vs_rhp"), col_or_nan(final, "h_lifted_power_score_vs_lhp")),
+    "p_hr_rate_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_hr_rate_allowed_rhh"), col_or_nan(final, "p_hr_rate_allowed_lhh")),
+    "p_exit_velo_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_exit_velo_allowed_rhh"), col_or_nan(final, "p_exit_velo_allowed_lhh")),
+    "p_barrel_pct_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_barrel_pct_allowed_rhh"), col_or_nan(final, "p_barrel_pct_allowed_lhh")),
+    "p_hard_hit_pct_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_hard_hit_pct_allowed_rhh"), col_or_nan(final, "p_hard_hit_pct_allowed_lhh")),
+    "p_launch_angle_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_launch_angle_allowed_rhh"), col_or_nan(final, "p_launch_angle_allowed_lhh")),
+    "p_sweet_spot_pct_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_sweet_spot_pct_allowed_rhh"), col_or_nan(final, "p_sweet_spot_pct_allowed_lhh")),
+    "p_pull_air_pct_allowed_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_pull_air_pct_allowed_rhh"), col_or_nan(final, "p_pull_air_pct_allowed_lhh")),
+    "p_hr_contact_risk_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_hr_contact_risk_rhh"), col_or_nan(final, "p_hr_contact_risk_lhh")),
+    "p_lift_damage_risk_vs_side": np.where(batter_right_series == 1, col_or_nan(final, "p_lift_damage_risk_rhh"), col_or_nan(final, "p_lift_damage_risk_lhh")),
 }
+
+extra_cols["m_handed_hr_matchup"] = extra_cols["h_hr_rate_vs_hand"] * extra_cols["p_hr_rate_allowed_vs_side"]
+extra_cols["m_handed_contact_matchup"] = extra_cols["h_hr_contact_score_vs_hand"] * extra_cols["p_hr_contact_risk_vs_side"]
+extra_cols["m_handed_lift_matchup"] = extra_cols["h_lifted_power_score_vs_hand"] * extra_cols["p_lift_damage_risk_vs_side"]
+
+pitch_hr_terms = []
+pitch_contact_terms = []
+pitch_ev_terms = []
 
 for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
     usage_r = f"p_{label}_usage_rhh"
@@ -333,15 +492,22 @@ for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
     hr_col = f"h_hr_vs_{label}"
     if hr_col in final.columns:
         extra_cols[f"m_{label}_hr_exposure"] = final[hr_col] * usage_match
+        pitch_hr_terms.append(extra_cols[f"m_{label}_hr_exposure"])
 
     xwoba_col = f"h_xwoba_vs_{label}"
     if xwoba_col in final.columns:
         extra_cols[f"m_{label}_xwoba_exposure"] = final[xwoba_col] * usage_match
+        pitch_contact_terms.append(extra_cols[f"m_{label}_xwoba_exposure"])
 
     ev_col = f"h_ev_vs_{label}"
     p_ev_col = f"p_ev_allowed_{label}"
     if ev_col in final.columns and p_ev_col in final.columns:
         extra_cols[f"m_{label}_ev_delta"] = final[ev_col] - final[p_ev_col]
+        pitch_ev_terms.append(extra_cols[f"m_{label}_ev_delta"] * usage_match)
+
+extra_cols["m_pitch_hr_matchup"] = np.sum(pitch_hr_terms, axis=0) if pitch_hr_terms else np.nan
+extra_cols["m_pitch_contact_matchup"] = np.sum(pitch_contact_terms, axis=0) if pitch_contact_terms else np.nan
+extra_cols["m_pitch_ev_matchup"] = np.sum(pitch_ev_terms, axis=0) if pitch_ev_terms else np.nan
 
 final = pd.concat([final, pd.DataFrame(extra_cols, index=final.index)], axis=1)
 
