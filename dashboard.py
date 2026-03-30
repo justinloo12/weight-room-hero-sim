@@ -343,6 +343,22 @@ def _reason_text(feat, val, z, pitcher_hand):
             f"{prefix}Power-contact profile is built for home runs ({sigma_str})",
         "h_lifted_power_score":
             f"{prefix}Lifted power profile is especially HR-friendly ({sigma_str})",
+        "h_hr_rate_vs_hand":
+            f"{prefix}Today's handedness split is favorable for HR upside ({sigma_str})",
+        "h_xwoba_vs_hand":
+            f"{prefix}Quality of contact vs today's handedness is strong ({sigma_str})",
+        "h_barrel_pct_vs_hand":
+            f"{prefix}Barrel rate vs today's handedness stands out ({sigma_str})",
+        "h_hard_hit_pct_vs_hand":
+            f"{prefix}Hard-hit rate vs today's handedness is strong ({sigma_str})",
+        "h_sweet_spot_pct_vs_hand":
+            f"{prefix}Sweet-spot rate vs today's handedness is supportive ({sigma_str})",
+        "h_pull_air_pct_vs_hand":
+            f"{prefix}Pull-air profile vs today's handedness is HR-friendly ({sigma_str})",
+        "h_hr_contact_score_vs_hand":
+            f"{prefix}Power-contact profile vs today's handedness is strong ({sigma_str})",
+        "h_lifted_power_score_vs_hand":
+            f"{prefix}Lifted damage profile vs today's handedness is strong ({sigma_str})",
         "h_hr_vs_rhp":
             f"{prefix}vs RHP: HR every {int(1/val) if val > 0 else '—'} at-bats ({sigma_str})",
         "h_hr_vs_lhp":
@@ -383,6 +399,24 @@ def _reason_text(feat, val, z, pitcher_hand):
             f"{prefix}Pitcher's contact profile is very homer-prone ({sigma_str})",
         "p_lift_damage_risk":
             f"{prefix}Pitcher gives up the kind of lifted contact that turns into HRs ({sigma_str})",
+        "p_hr_rate_allowed_vs_side":
+            (f"{prefix}Pitcher is especially homer-prone to this side of the plate ({sigma_str})" if val > 0 else None),
+        "p_barrel_pct_allowed_vs_side":
+            f"{prefix}Pitcher gives up barrels to this side of the plate ({sigma_str})",
+        "p_hard_hit_pct_allowed_vs_side":
+            f"{prefix}Pitcher allows hard-hit contact to this side ({sigma_str})",
+        "p_exit_velo_allowed_vs_side":
+            f"{prefix}Pitcher allows loud contact to this side of the plate ({sigma_str})",
+        "p_launch_angle_allowed_vs_side":
+            f"{prefix}Pitcher gives this side of the plate a friendly launch window ({sigma_str})",
+        "p_sweet_spot_pct_allowed_vs_side":
+            f"{prefix}Pitcher allows ideal launch angle contact to this side ({sigma_str})",
+        "p_pull_air_pct_allowed_vs_side":
+            f"{prefix}Pitcher gives this side of the plate HR-friendly pull air ({sigma_str})",
+        "p_hr_contact_risk_vs_side":
+            f"{prefix}Pitcher is especially vulnerable to this side's HR contact ({sigma_str})",
+        "p_lift_damage_risk_vs_side":
+            f"{prefix}Pitcher allows lifted damage to this side ({sigma_str})",
     }
     text = templates.get(feat)
     if text is None:
@@ -424,6 +458,9 @@ HITTER_GOOD_FEATS = [
     "h_barrel_pct", "h_exit_velo", "h_hard_hit_pct", "h_pull_air_pct",
     "h_hr_rate", "h_launch_angle", "h_sweet_spot_pct",
     "h_hr_contact_score", "h_lifted_power_score",
+    "h_hr_rate_vs_hand", "h_xwoba_vs_hand", "h_barrel_pct_vs_hand",
+    "h_hard_hit_pct_vs_hand", "h_sweet_spot_pct_vs_hand", "h_pull_air_pct_vs_hand",
+    "h_hr_contact_score_vs_hand", "h_lifted_power_score_vs_hand",
     "h_hr_vs_4seam", "h_hr_vs_slider", "h_hr_vs_change", "h_hr_vs_sinker",
     "h_ev_vs_4seam", "h_ev_vs_slider",
     "h_xwoba_vs_4seam", "h_xwoba_vs_slider",
@@ -434,6 +471,10 @@ PITCHER_VULN_FEATS = [
     "p_exit_velo_allowed", "p_launch_angle_allowed", "p_sweet_spot_pct_allowed",
     "p_pull_air_pct_allowed", "p_spin_into_barrel_pct",
     "p_hr_contact_risk", "p_lift_damage_risk",
+    "p_hr_rate_allowed_vs_side", "p_barrel_pct_allowed_vs_side", "p_hard_hit_pct_allowed_vs_side",
+    "p_exit_velo_allowed_vs_side", "p_launch_angle_allowed_vs_side",
+    "p_sweet_spot_pct_allowed_vs_side", "p_pull_air_pct_allowed_vs_side",
+    "p_hr_contact_risk_vs_side", "p_lift_damage_risk_vs_side",
 ]
  
 # Ballpark HR rate factors (for ML feature building)
@@ -499,17 +540,117 @@ def _batter_hand_info(h_row):
     batter_right = int(round(batter_right)) if batter_right is not None else 0
     return batter_right, ("rhh" if batter_right == 1 else "lhh")
 
-def _resolve_pitcher_row(pitcher_name):
+def _hand_sample_weight(hr, pitcher_hand):
+    label = "rhp" if pitcher_hand == "R" else "lhp"
+    n = _safe_float(hr.get(f"h_n_batted_vs_{label}"))
+    if n is None:
+        return 0.6
+    return min(1.0, max(0.0, (n - 10.0) / 90.0))
+
+def _pitcher_sample_weight(pr, side_label=None):
+    n_col = f"p_n_faced_{side_label}" if side_label else "p_n_faced"
+    n = _safe_float(pr.get(n_col))
+    if n is None:
+        return 0.35
+    return min(1.0, max(0.0, (n - 25.0) / 220.0))
+
+def _shrunk_pitcher_value(pr, feat, side_label=None):
+    raw = _safe_float(pr.get(feat))
+    if raw is None:
+        return None
+
+    weight = _pitcher_sample_weight(pr, side_label)
+    baseline = None
+    if feat in pitcher_pop:
+        baseline = pitcher_pop[feat][0]
+    elif side_label and feat.endswith(f"_{side_label}"):
+        overall_feat = feat[: -(len(side_label) + 1)]
+        baseline = _safe_float(pr.get(overall_feat))
+        if baseline is None and overall_feat in pitcher_pop:
+            baseline = pitcher_pop[overall_feat][0]
+    if baseline is None:
+        fallback = {
+            "p_hr_rate_allowed": 0.034,
+            "p_exit_velo_allowed": 88.0,
+            "p_barrel_pct_allowed": 0.07,
+            "p_hard_hit_pct_allowed": 0.34,
+            "p_launch_angle_allowed": 14.0,
+            "p_sweet_spot_pct_allowed": 0.32,
+            "p_pull_air_pct_allowed": 0.18,
+            "p_hr_contact_risk": 0.18,
+            "p_lift_damage_risk": 0.16,
+        }
+        overall_feat = feat[: -(len(side_label) + 1)] if side_label and feat.endswith(f"_{side_label}") else feat
+        baseline = fallback.get(overall_feat, raw)
+    return weight * raw + (1.0 - weight) * baseline
+
+def _resolve_pitcher_row(pitcher_name, allow_fuzzy=False):
     if not pitcher_name or pitcher_name == "TBD":
         return pd.DataFrame()
     exact = pitcher[pitcher["player_name"] == to_statcast_name(pitcher_name)]
     if len(exact) > 0:
         return exact.head(1)
+    if not allow_fuzzy:
+        return pd.DataFrame()
     last = pitcher_name.split()[-1].lower()
-    fuzzy = pitcher[pitcher["player_name"].str.lower().str.contains(last, na=False)].head(1)
-    return fuzzy
+    return pitcher[pitcher["player_name"].str.lower().str.contains(last, na=False)].head(1)
 
-def _derive_matchup_feature(feat, hr, pr, batter_side_suffix):
+def _derive_matchup_feature(feat, hr, pr, batter_side_suffix, pitcher_hand="R"):
+    hand_label = "rhp" if pitcher_hand == "R" else "lhp"
+    side_label = batter_side_suffix
+
+    if feat in {
+        "h_hr_rate_vs_hand", "h_xwoba_vs_hand", "h_barrel_pct_vs_hand", "h_hard_hit_pct_vs_hand",
+        "h_launch_angle_vs_hand", "h_sweet_spot_pct_vs_hand", "h_pull_air_pct_vs_hand",
+        "h_hr_contact_score_vs_hand", "h_lifted_power_score_vs_hand",
+    }:
+        field_map = {
+            "h_hr_rate_vs_hand": f"h_hr_vs_{hand_label}",
+            "h_xwoba_vs_hand": f"h_xwoba_vs_{hand_label}",
+            "h_barrel_pct_vs_hand": f"h_barrel_pct_vs_{hand_label}",
+            "h_hard_hit_pct_vs_hand": f"h_hard_hit_pct_vs_{hand_label}",
+            "h_launch_angle_vs_hand": f"h_launch_angle_vs_{hand_label}",
+            "h_sweet_spot_pct_vs_hand": f"h_sweet_spot_pct_vs_{hand_label}",
+            "h_pull_air_pct_vs_hand": f"h_pull_air_pct_vs_{hand_label}",
+            "h_hr_contact_score_vs_hand": f"h_hr_contact_score_vs_{hand_label}",
+            "h_lifted_power_score_vs_hand": f"h_lifted_power_score_vs_{hand_label}",
+        }
+        raw = _safe_float(hr.get(field_map[feat]))
+        if raw is None:
+            return None
+        baseline_map = {
+            "h_hr_rate_vs_hand": _safe_float(hr.get("h_hr_rate")) or 0.034,
+            "h_xwoba_vs_hand": _safe_float(hr.get("estimated_woba_using_speedangle")) or 0.320,
+            "h_barrel_pct_vs_hand": _safe_float(hr.get("h_barrel_pct")) or 0.0,
+            "h_hard_hit_pct_vs_hand": _safe_float(hr.get("h_hard_hit_pct")) or 0.0,
+            "h_launch_angle_vs_hand": _safe_float(hr.get("h_launch_angle")) or 12.0,
+            "h_sweet_spot_pct_vs_hand": _safe_float(hr.get("h_sweet_spot_pct")) or 0.0,
+            "h_pull_air_pct_vs_hand": _safe_float(hr.get("h_pull_air_pct")) or 0.0,
+            "h_hr_contact_score_vs_hand": _safe_float(hr.get("h_hr_contact_score")) or 0.0,
+            "h_lifted_power_score_vs_hand": _safe_float(hr.get("h_lifted_power_score")) or 0.0,
+        }
+        weight = _hand_sample_weight(hr, pitcher_hand)
+        return weight * raw + (1.0 - weight) * baseline_map[feat]
+
+    if feat in {
+        "p_hr_rate_allowed_vs_side", "p_barrel_pct_allowed_vs_side", "p_hard_hit_pct_allowed_vs_side",
+        "p_exit_velo_allowed_vs_side", "p_launch_angle_allowed_vs_side",
+        "p_sweet_spot_pct_allowed_vs_side", "p_pull_air_pct_allowed_vs_side",
+        "p_hr_contact_risk_vs_side", "p_lift_damage_risk_vs_side",
+    }:
+        field_map = {
+            "p_hr_rate_allowed_vs_side": f"p_hr_rate_allowed_{side_label}",
+            "p_barrel_pct_allowed_vs_side": f"p_barrel_pct_allowed_{side_label}",
+            "p_hard_hit_pct_allowed_vs_side": f"p_hard_hit_pct_allowed_{side_label}",
+            "p_exit_velo_allowed_vs_side": f"p_exit_velo_allowed_{side_label}",
+            "p_launch_angle_allowed_vs_side": f"p_launch_angle_allowed_{side_label}",
+            "p_sweet_spot_pct_allowed_vs_side": f"p_sweet_spot_pct_allowed_{side_label}",
+            "p_pull_air_pct_allowed_vs_side": f"p_pull_air_pct_allowed_{side_label}",
+            "p_hr_contact_risk_vs_side": f"p_hr_contact_risk_{side_label}",
+            "p_lift_damage_risk_vs_side": f"p_lift_damage_risk_{side_label}",
+        }
+        return _shrunk_pitcher_value(pr, field_map[feat], side_label)
+
     if feat == "h_hr_contact_score":
         barrel = _safe_float(hr.get("h_barrel_pct"))
         sweet = _safe_float(hr.get("h_sweet_spot_pct"))
@@ -530,21 +671,21 @@ def _derive_matchup_feature(feat, hr, pr, batter_side_suffix):
         launch_window = max(0.0, (16.0 - abs(launch_angle - 18.0)) / 16.0)
         return barrel * 0.45 + sweet * 0.30 + pull_air * 0.15 + launch_window * 0.10
     if feat == "p_hr_contact_risk":
-        barrel = _safe_float(pr.get("p_barrel_pct_allowed"))
-        hard_hit = _safe_float(pr.get("p_hard_hit_pct_allowed"))
-        sweet = _safe_float(pr.get("p_sweet_spot_pct_allowed"))
-        pull_air = _safe_float(pr.get("p_pull_air_pct_allowed"))
-        hr_rate = _safe_float(pr.get("p_hr_rate_allowed"))
-        ev_allowed = _safe_float(pr.get("p_exit_velo_allowed"))
+        barrel = _shrunk_pitcher_value(pr, "p_barrel_pct_allowed")
+        hard_hit = _shrunk_pitcher_value(pr, "p_hard_hit_pct_allowed")
+        sweet = _shrunk_pitcher_value(pr, "p_sweet_spot_pct_allowed")
+        pull_air = _shrunk_pitcher_value(pr, "p_pull_air_pct_allowed")
+        hr_rate = _shrunk_pitcher_value(pr, "p_hr_rate_allowed")
+        ev_allowed = _shrunk_pitcher_value(pr, "p_exit_velo_allowed")
         if None in (barrel, hard_hit, sweet, pull_air, hr_rate, ev_allowed):
             return None
         ev_risk = max(0.0, (ev_allowed - 88.0) / 8.0)
         return barrel * 0.30 + hard_hit * 0.20 + sweet * 0.20 + pull_air * 0.15 + hr_rate * 0.15 + ev_risk * 0.10
     if feat == "p_lift_damage_risk":
-        sweet = _safe_float(pr.get("p_sweet_spot_pct_allowed"))
-        pull_air = _safe_float(pr.get("p_pull_air_pct_allowed"))
-        launch_angle = _safe_float(pr.get("p_launch_angle_allowed"))
-        barrel = _safe_float(pr.get("p_barrel_pct_allowed"))
+        sweet = _shrunk_pitcher_value(pr, "p_sweet_spot_pct_allowed")
+        pull_air = _shrunk_pitcher_value(pr, "p_pull_air_pct_allowed")
+        launch_angle = _shrunk_pitcher_value(pr, "p_launch_angle_allowed")
+        barrel = _shrunk_pitcher_value(pr, "p_barrel_pct_allowed")
         if None in (sweet, pull_air, launch_angle, barrel):
             return None
         launch_window = max(0.0, (16.0 - abs(launch_angle - 18.0)) / 16.0)
@@ -570,12 +711,24 @@ def _derive_matchup_feature(feat, hr, pr, batter_side_suffix):
             return None
         return (h_sweet * p_sweet + h_pull * p_pull) / 2.0
     if feat == "m_hr_contact_matchup":
-        h_score = _derive_matchup_feature("h_hr_contact_score", hr, pr, batter_side_suffix)
-        p_score = _derive_matchup_feature("p_hr_contact_risk", hr, pr, batter_side_suffix)
+        h_score = _derive_matchup_feature("h_hr_contact_score", hr, pr, batter_side_suffix, pitcher_hand)
+        p_score = _derive_matchup_feature("p_hr_contact_risk", hr, pr, batter_side_suffix, pitcher_hand)
         return None if h_score is None or p_score is None else h_score * p_score
     if feat == "m_lifted_power_matchup":
-        h_score = _derive_matchup_feature("h_lifted_power_score", hr, pr, batter_side_suffix)
-        p_score = _derive_matchup_feature("p_lift_damage_risk", hr, pr, batter_side_suffix)
+        h_score = _derive_matchup_feature("h_lifted_power_score", hr, pr, batter_side_suffix, pitcher_hand)
+        p_score = _derive_matchup_feature("p_lift_damage_risk", hr, pr, batter_side_suffix, pitcher_hand)
+        return None if h_score is None or p_score is None else h_score * p_score
+    if feat == "m_handed_hr_matchup":
+        h_score = _derive_matchup_feature("h_hr_rate_vs_hand", hr, pr, batter_side_suffix, pitcher_hand)
+        p_score = _derive_matchup_feature("p_hr_rate_allowed_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
+        return None if h_score is None or p_score is None else h_score * p_score
+    if feat == "m_handed_contact_matchup":
+        h_score = _derive_matchup_feature("h_hr_contact_score_vs_hand", hr, pr, batter_side_suffix, pitcher_hand)
+        p_score = _derive_matchup_feature("p_hr_contact_risk_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
+        return None if h_score is None or p_score is None else h_score * p_score
+    if feat == "m_handed_lift_matchup":
+        h_score = _derive_matchup_feature("h_lifted_power_score_vs_hand", hr, pr, batter_side_suffix, pitcher_hand)
+        p_score = _derive_matchup_feature("p_lift_damage_risk_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
         return None if h_score is None or p_score is None else h_score * p_score
     if feat.startswith("p_") and feat.endswith("_usage_matchup"):
         label = feat[len("p_"):-len("_usage_matchup")]
@@ -595,6 +748,31 @@ def _derive_matchup_feature(feat, hr, pr, batter_side_suffix):
         h_val = _shrunk_pitch_value(hr, f"h_ev_vs_{label}")
         p_val = _safe_float(pr.get(f"p_ev_allowed_{label}"))
         return None if h_val is None or p_val is None else h_val - p_val
+    if feat == "m_pitch_hr_matchup":
+        vals = []
+        for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
+            h_val = _shrunk_pitch_value(hr, f"h_hr_vs_{label}")
+            usage = _safe_float(pr.get(f"p_{label}_usage_{batter_side_suffix}"))
+            if h_val is not None and usage is not None:
+                vals.append(h_val * usage)
+        return sum(vals) if vals else None
+    if feat == "m_pitch_contact_matchup":
+        vals = []
+        for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
+            h_val = _shrunk_pitch_value(hr, f"h_xwoba_vs_{label}")
+            usage = _safe_float(pr.get(f"p_{label}_usage_{batter_side_suffix}"))
+            if h_val is not None and usage is not None:
+                vals.append(h_val * usage)
+        return sum(vals) if vals else None
+    if feat == "m_pitch_ev_matchup":
+        vals = []
+        for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
+            h_val = _shrunk_pitch_value(hr, f"h_ev_vs_{label}")
+            p_val = _safe_float(pr.get(f"p_ev_allowed_{label}"))
+            usage = _safe_float(pr.get(f"p_{label}_usage_{batter_side_suffix}"))
+            if h_val is not None and p_val is not None and usage is not None:
+                vals.append((h_val - p_val) * usage)
+        return sum(vals) if vals else None
     return None
 
 def _matchup_reasons(hr, pr, batter_side_suffix):
@@ -657,6 +835,56 @@ def _matchup_reasons(hr, pr, batter_side_suffix):
 
     return reasons[:2]
 
+def _power_foundation_reasons(hr):
+    reasons = []
+    hr_contact = _safe_float(hr.get("h_hr_contact_score"))
+    lifted = _safe_float(hr.get("h_lifted_power_score"))
+    barrel = _safe_float(hr.get("h_barrel_pct"))
+    hard_hit = _safe_float(hr.get("h_hard_hit_pct"))
+    pull_air = _safe_float(hr.get("h_pull_air_pct"))
+    launch_angle = _safe_float(hr.get("h_launch_angle"))
+
+    if hr_contact is not None and hr_contact >= 0.24:
+        reasons.append("⚡ Power-contact foundation is strong enough to support real HR upside")
+    elif lifted is not None and lifted >= 0.20:
+        reasons.append("⚡ Lift and contact shape are both working in a homer-friendly direction")
+
+    if barrel is not None and hard_hit is not None and barrel >= 0.10 and hard_hit >= 0.40:
+        reasons.append(f"⚡ Barrel {barrel*100:.1f}% and hard-hit {hard_hit*100:.1f}% give him real game power")
+    elif pull_air is not None and launch_angle is not None and pull_air >= 0.20 and 12 <= launch_angle <= 22:
+        reasons.append("⚡ Pull-air profile and launch angle both fit a homer path")
+
+    return reasons
+
+def _handedness_reasons(hr, pr, pitcher_hand, batter_side_suffix):
+    reasons = []
+    hand_label = "LHP" if pitcher_hand == "L" else "RHP"
+    hitter_hr = _derive_matchup_feature("h_hr_rate_vs_hand", hr, pr, batter_side_suffix, pitcher_hand)
+    hitter_xwoba = _derive_matchup_feature("h_xwoba_vs_hand", hr, pr, batter_side_suffix, pitcher_hand)
+    hitter_contact = _derive_matchup_feature("h_hr_contact_score_vs_hand", hr, pr, batter_side_suffix, pitcher_hand)
+    pitcher_hr = _derive_matchup_feature("p_hr_rate_allowed_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
+    pitcher_contact = _derive_matchup_feature("p_hr_contact_risk_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
+    base_hr = _safe_float(hr.get("h_hr_rate")) or 0.034
+    base_xwoba = 0.320
+    base_pitcher_hr = _safe_float(pr.get("p_hr_rate_allowed")) or 0.034
+
+    if hitter_hr is not None and pitcher_hr is not None:
+        if hitter_hr >= base_hr * 1.20 and pitcher_hr >= base_pitcher_hr * 1.12:
+            reasons.append(f"⚡ Handedness is a real plus: he hits {hand_label} well and this pitcher is weaker to his side")
+        elif hitter_hr <= base_hr * 0.82 and pitcher_hr <= base_pitcher_hr * 0.92:
+            reasons.append(f"❄️ Handedness is a drag: this is not his best side and the pitcher is tougher here")
+
+    if not reasons and hitter_xwoba is not None and hitter_contact is not None:
+        if hitter_xwoba >= base_xwoba + 0.035 and hitter_contact >= (_safe_float(hr.get("h_hr_contact_score")) or 0) * 1.05:
+            reasons.append(f"⚡ Contact quality vs {hand_label} is clearly stronger than his baseline")
+
+    if not reasons and pitcher_contact is not None:
+        base_pitcher_contact = _safe_float(pr.get("p_hr_contact_risk")) or 0.0
+        if pitcher_contact >= base_pitcher_contact * 1.08:
+            reasons.append("⚡ Pitcher is especially vulnerable to this side of the plate")
+
+    return reasons
+
 def _bvp_reason(batter_id, pitcher_name):
     if BVP_HISTORY.empty or not pitcher_name or pitcher_name == "TBD":
         return None
@@ -685,6 +913,30 @@ def _bvp_reason(batter_id, pitcher_name):
         return f"BvP: {hits}-for-{ab} vs {pitcher_name} with {hr} HR"
     return f"BvP: {hits}-for-{ab} vs {pitcher_name}"
 
+def _platoon_note(h_row, pitcher_hand):
+    if len(h_row) == 0 or pitcher_hand not in {"R", "L"}:
+        return None, False
+    hr = h_row.iloc[0]
+    vs_r = _safe_float(hr.get("h_hr_vs_rhp"))
+    vs_l = _safe_float(hr.get("h_hr_vs_lhp"))
+    base = _safe_float(hr.get("h_hr_rate"))
+    if vs_r is None or vs_l is None or base is None or min(vs_r, vs_l) <= 0:
+        return None, False
+
+    stronger_side = "LHP" if vs_l > vs_r else "RHP"
+    today_side = "LHP" if pitcher_hand == "L" else "RHP"
+    stronger_split = max(vs_r, vs_l)
+    weaker_split = min(vs_r, vs_l)
+    if stronger_split < weaker_split * 1.25 and stronger_split < base * 1.20:
+        return None, False
+
+    on_stronger_side = today_side == stronger_side
+    if on_stronger_side:
+        note = f"Platoon bat: much stronger vs {stronger_side}, and today is the favorable side"
+    else:
+        note = f"Platoon bat: much stronger vs {stronger_side}, but today is the weaker side"
+    return note, on_stronger_side
+
 def _reason_priority(reason):
     txt = (reason or "").lower()
     high_signal = [
@@ -709,7 +961,7 @@ def _reason_priority(reason):
  
 def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None):
     h_row = hitter[hitter["batter"] == batter_id]
-    p_row = _resolve_pitcher_row(pitcher_name)
+    p_row = _resolve_pitcher_row(pitcher_name, allow_fuzzy=False)
 
     pitcher_found = len(p_row) > 0
     batter_right, batter_side_suffix = _batter_hand_info(h_row)
@@ -738,7 +990,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         for feat in PITCHER_VULN_FEATS:
             if feat not in pitcher.columns or feat not in pitcher_pop:
                 continue
-            val = pr.get(feat)
+            val = _shrunk_pitcher_value(pr, feat)
             if val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val))):
                 continue
             mean, std = pitcher_pop[feat]
@@ -775,7 +1027,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
                     if v is not None and not (isinstance(v, float) and np.isnan(v)):
                         feature_vals[feat] = float(v)
                 elif feat.startswith("h_"):
-                    derived = _derive_matchup_feature(feat, hr, pd.Series(dtype=float), batter_side_suffix)
+                    derived = _derive_matchup_feature(feat, hr, pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
                     if derived is not None:
                         feature_vals[feat] = derived
             # Platoon-matched HR rate
@@ -792,7 +1044,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
                     if v is not None and not (isinstance(v, float) and np.isnan(v)):
                         feature_vals[feat] = float(v)
                 elif feat not in feature_vals or pd.isna(feature_vals[feat]):
-                    derived = _derive_matchup_feature(feat, hr, pr, batter_side_suffix)
+                    derived = _derive_matchup_feature(feat, hr, pr, batter_side_suffix, pitcher_hand)
                     if derived is not None:
                         feature_vals[feat] = derived
 
@@ -838,14 +1090,20 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
             platoon_sample = float(hr.get("h_n_batted", 0) or 0)
             platoon_weight = min(1.0, max(0.0, (platoon_sample - 60.0) / 220.0))
             matched_shrunk = platoon_weight * matched_split + (1.0 - platoon_weight) * base_rate
-            if matched_shrunk < base_rate * 0.78:
-                prob_raw *= 0.86
+            if matched_shrunk < base_rate * 0.65:
+                prob_raw *= 0.74
+            elif matched_shrunk < base_rate * 0.78:
+                prob_raw *= 0.82
             elif matched_shrunk < base_rate * 0.90:
-                prob_raw *= 0.93
+                prob_raw *= 0.90
             elif matched_shrunk > base_rate * 1.18:
                 prob_raw *= 1.05
         if matched_split is not None and off_split is not None and pitcher_hand in {"R", "L"}:
-            if matched_split < off_split * 0.82:
+            if matched_split < off_split * 0.65:
+                prob_raw *= 0.76
+            elif matched_split < off_split * 0.80:
+                prob_raw *= 0.84
+            elif matched_split < off_split * 0.92:
                 prob_raw *= 0.92
  
         # ── Z-score signal multiplier ──────────────────────────
@@ -864,7 +1122,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         # Starters pitch ~60% of the game, bullpen covers ~40%.
         # Blend: 60% starter quality + 40% team bullpen quality.
         if pitcher_found:
-            p_hr_allowed = float(p_row.iloc[0].get("p_hr_rate_allowed", LEAGUE_AB_RATE))
+            p_hr_allowed = float(_shrunk_pitcher_value(p_row.iloc[0], "p_hr_rate_allowed") or LEAGUE_AB_RATE)
             if   p_hr_allowed < 0.015: starter_mult = 0.70
             elif p_hr_allowed < 0.022: starter_mult = 0.85
             elif p_hr_allowed > 0.045: starter_mult = 1.18
@@ -876,25 +1134,150 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         bullpen_mult = _bullpen_multiplier(opp_team or home_team)
         blended_mult = 0.70 * starter_mult + 0.30 * bullpen_mult
         prob_raw    *= blended_mult
- 
+
+        # ── Blend ML output with a baseball-calibrated heuristic ──────
+        # The ML ranking is useful, but calibrated raw HR probabilities can get
+        # too conservative for established sluggers. Blend it with a simpler
+        # baseball prior built from:
+        #   1. hitter baseline HR rate
+        #   2. handedness split
+        #   3. pitcher weakness to that side
+        #   4. core power/contact quality
+        matched_shrunk = base_rate
+        if matched_split is not None:
+            platoon_sample = float(hr.get(f"h_n_batted_vs_{'rhp' if pitcher_hand == 'R' else 'lhp'}", 0) or 0)
+            hand_weight = min(1.0, max(0.0, (platoon_sample - 10.0) / 90.0))
+            matched_shrunk = hand_weight * matched_split + (1.0 - hand_weight) * base_rate
+
+        side_pitcher_hr = None
+        if pitcher_found:
+            pr = p_row.iloc[0]
+            side_pitcher_hr = _derive_matchup_feature("p_hr_rate_allowed_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
+        if side_pitcher_hr is None:
+            side_pitcher_hr = p_hr_allowed if pitcher_found else LEAGUE_AB_RATE
+
+        contact_score = _safe_float(hr.get("h_hr_contact_score")) or 0.0
+        hand_contact = _derive_matchup_feature("h_hr_contact_score_vs_hand", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
+        if hand_contact is None:
+            hand_contact = contact_score
+        pitch_hr_matchup = _derive_matchup_feature("m_pitch_hr_matchup", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
+        pitch_contact_matchup = _derive_matchup_feature("m_pitch_contact_matchup", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
+
+        power_mult = 0.92
+        if contact_score >= 0.24:
+            power_mult += 0.16
+        elif contact_score >= 0.20:
+            power_mult += 0.10
+        elif contact_score >= 0.16:
+            power_mult += 0.05
+        if hand_contact >= contact_score * 1.08:
+            power_mult += 0.06
+        elif hand_contact <= contact_score * 0.90:
+            power_mult -= 0.05
+        if pitch_hr_matchup is not None and pitch_hr_matchup >= 0.010:
+            power_mult += 0.05
+        if pitch_contact_matchup is not None and pitch_contact_matchup >= 0.090:
+            power_mult += 0.04
+
+        heuristic_ab = (
+            base_rate * 0.45
+            + matched_shrunk * 0.25
+            + side_pitcher_hr * 0.20
+            + LEAGUE_AB_RATE * 0.10
+        ) * power_mult * blended_mult
+        heuristic_ab = max(0.006, min(0.11, heuristic_ab))
+
+        # Blend the model with the baseball prior. Established hitters get more
+        # weight on the prior so stars don't collapse to the floor from an
+        # over-conservative calibrated model.
+        established = min(1.0, max(0.0, (n_batted - 80.0) / 220.0))
+        heuristic_weight = 0.30 + 0.20 * established
+        prob_raw = (1.0 - heuristic_weight) * prob_raw + heuristic_weight * heuristic_ab
+
+        # ── Reality check for fringe bats ─────────────────────
+        # Do not let thin-contact or middling-power bats leap into elite HR
+        # territory just because a split/matchup line looks favorable.
+        barrel = _safe_float(hr.get("h_barrel_pct")) or 0.0
+        exit_velo = _safe_float(hr.get("h_exit_velo")) or 0.0
+        hard_hit = _safe_float(hr.get("h_hard_hit_pct")) or 0.0
+        pull_air = _safe_float(hr.get("h_pull_air_pct")) or 0.0
+        sweet_spot = _safe_float(hr.get("h_sweet_spot_pct")) or 0.0
+
+        if barrel < 0.04 and exit_velo < 84.0 and hard_hit < 0.28:
+            prob_raw = min(prob_raw, 0.022)
+        elif barrel < 0.06 and exit_velo < 85.0 and hard_hit < 0.31:
+            prob_raw = min(prob_raw, 0.028)
+        elif barrel < 0.08 and exit_velo < 86.0 and hard_hit < 0.34 and pull_air < 0.18:
+            prob_raw = min(prob_raw, 0.036)
+        elif barrel < 0.10 and exit_velo < 87.0 and hard_hit < 0.36 and sweet_spot < 0.32:
+            prob_raw = min(prob_raw, 0.050)
+
+        # Very small overall sample should never sit at the very top of the board.
+        if n_batted < 140 and (barrel < 0.08 or exit_velo < 86.0):
+            prob_raw = min(prob_raw, 0.040)
+        elif n_batted < 220 and barrel < 0.07 and exit_velo < 85.5:
+            prob_raw = min(prob_raw, 0.045)
+
+        # Established sluggers should not collapse unrealistically low when both
+        # the baseline power traits and sample size are strong.
+        elite_power = (
+            n_batted >= 260
+            and barrel >= 0.10
+            and exit_velo >= 86.0
+            and hard_hit >= 0.35
+        )
+        upper_tier_power = (
+            n_batted >= 220
+            and (
+                (barrel >= 0.08 and exit_velo >= 86.5 and hard_hit >= 0.34)
+                or contact_score >= 0.205
+            )
+        )
+        if elite_power:
+            prob_raw = max(prob_raw, 0.045)
+            if matched_shrunk >= base_rate * 1.08 or hand_contact >= contact_score * 1.03:
+                prob_raw = max(prob_raw, 0.055)
+        elif upper_tier_power:
+            prob_raw = max(prob_raw, 0.038)
+            if matched_shrunk >= base_rate:
+                prob_raw = max(prob_raw, 0.044)
+
         # ── Hard cap by sample size (applied AFTER all multipliers) ────
         # Prevents small-sample flukes from surviving the z-score boost.
         if   n_batted < 100: prob_raw = min(prob_raw, 0.032)  # → ~11% per-game max
         elif n_batted < 150: prob_raw = min(prob_raw, 0.045)  # → ~15% per-game max
         elif n_batted < 220: prob_raw = min(prob_raw, 0.060)
  
-        # ── Convert per-AB → per-game ──────────────────────────
-        # 3.5 PA/game average.  per_game = 1 − (1 − p_ab)^3.5
-        #   p_ab=0.020 →  6.7%  p_ab=0.034 → 11%
-        #   p_ab=0.060 → 19%    p_ab=0.090 → 28%  p_ab=0.120 → 35%→cap
-        n_pa = 3.5
-        prob_raw_clamped = max(0.001, min(0.25, prob_raw))
-        prob = (1.0 - (1.0 - prob_raw_clamped) ** n_pa) * 100
-        # Soft-compress the very top end instead of hard-capping a bunch of hitters
-        # at exactly the same displayed probability.
-        if prob > 22.0:
-            prob = 22.0 + (prob - 22.0) * 0.45
-        prob = max(2.0, min(26.0, prob))
+        # ── Convert score to displayed HR probability ─────────
+        # Keep the ML model for ranking, but use a baseball-calibrated display
+        # curve so obvious sluggers do not look absurdly underpriced.
+        n_pa = 3.9
+        prob_raw_clamped = max(0.001, min(0.18, prob_raw))
+        heuristic_clamped = max(0.004, min(0.14, heuristic_ab))
+
+        # Weight the custom baseball prior more heavily than the raw calibrated
+        # model because the latter is still too conservative for HR pricing.
+        display_ab = 0.30 * prob_raw_clamped + 0.70 * heuristic_clamped
+
+        # Convert the top hitter/pitcher z-signal into a modest pricing bump.
+        score_signal = max(-1.4, min(1.8, combined_z))
+        display_ab *= math.exp(score_signal * 0.16)
+
+        # Extra lift for truly elite sluggers with real samples.
+        if elite_power:
+            display_ab *= 1.14
+        elif upper_tier_power:
+            display_ab *= 1.08
+
+        # Preserve the fringe-bat caps but keep a stronger floor for real sluggers.
+        if elite_power or upper_tier_power:
+            display_ab = max(display_ab, heuristic_clamped * (0.92 if upper_tier_power else 0.98))
+
+        display_ab = max(0.006, min(0.15, display_ab))
+        prob = (1.0 - (1.0 - display_ab) ** n_pa) * 100
+        if prob > 23.0:
+            prob = 23.0 + (prob - 23.0) * 0.55
+        prob = max(3.0, min(30.0, prob))
  
     else:
         # --- Z-score fallback (no trained model) ---
@@ -925,18 +1308,35 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     )
  
     reasons = []
-    for feat, z, val in pos_scored[:5]:
-        text, _, _ = _reason_text(feat, val, z, pitcher_hand)
-        if text:
-            reasons.append(text)
-        if len(reasons) == 2:
-            break
-
-    if pitcher_found and len(h_row) > 0 and len(reasons) < 2:
-        matchup_notes = _matchup_reasons(h_row.iloc[0], p_row.iloc[0], batter_side_suffix)
-        for note in matchup_notes:
+    if len(h_row) > 0:
+        hr = h_row.iloc[0]
+        for note in _power_foundation_reasons(hr):
             if note not in reasons:
                 reasons.append(note)
+            if len(reasons) == 2:
+                break
+
+        if pitcher_found and len(reasons) < 2:
+            pr = p_row.iloc[0]
+            for note in _handedness_reasons(hr, pr, pitcher_hand, batter_side_suffix):
+                if note not in reasons:
+                    reasons.append(note)
+                if len(reasons) == 2:
+                    break
+
+        if pitcher_found and len(reasons) < 2:
+            matchup_notes = _matchup_reasons(h_row.iloc[0], p_row.iloc[0], batter_side_suffix)
+            for note in matchup_notes:
+                if note not in reasons:
+                    reasons.append(note)
+                if len(reasons) == 2:
+                    break
+
+    if len(reasons) < 2:
+        for feat, z, val in pos_scored[:5]:
+            text, _, _ = _reason_text(feat, val, z, pitcher_hand)
+            if text and text not in reasons:
+                reasons.append(text)
             if len(reasons) == 2:
                 break
 
@@ -944,6 +1344,10 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         bvp_note = _bvp_reason(batter_id, pitcher_name)
         if bvp_note and bvp_note not in reasons:
             reasons.append(bvp_note)
+
+    platoon_note, platoon_favorable = _platoon_note(h_row, pitcher_hand)
+    if platoon_note and platoon_note not in reasons:
+        reasons.append(("⚡ " if platoon_favorable else "❄️ ") + platoon_note)
 
     # Add weather note if meaningful
     if abs(wx_adj) >= 0.3:
@@ -1288,6 +1692,20 @@ def build_dashboard():
                 elif edge >= 4:                                value = "✅ Value"
                 elif edge >= 0:                                value = "➖ Neutral"
                 else:                                          value = "❌ Avoid"
+
+                platoon_mismatch = False
+                platoon_note = None
+                platoon_favorable = False
+                if len(h_prof):
+                    matched_split = _safe_float(h_prof.iloc[0].get("h_hr_vs_rhp" if opp_hand == "R" else "h_hr_vs_lhp"))
+                    off_split = _safe_float(h_prof.iloc[0].get("h_hr_vs_lhp" if opp_hand == "R" else "h_hr_vs_rhp"))
+                    base_split = _safe_float(h_prof.iloc[0].get("h_hr_rate"))
+                    platoon_note, platoon_favorable = _platoon_note(h_prof, opp_hand)
+                    if matched_split is not None and off_split is not None and base_split is not None:
+                        platoon_mismatch = (
+                            matched_split < off_split * 0.78
+                            and matched_split < base_split * 0.90
+                        )
  
                 rec = {
                     "player":       name,
@@ -1311,7 +1729,10 @@ def build_dashboard():
                     "h_hr_contact_score": float(h_prof.iloc[0].get("h_hr_contact_score", 0)) if len(h_prof) else 0.0,
                     "h_barrel_pct": float(h_prof.iloc[0].get("h_barrel_pct", 0)) if len(h_prof) else 0.0,
                     "h_hard_hit_pct": float(h_prof.iloc[0].get("h_hard_hit_pct", 0)) if len(h_prof) else 0.0,
-                    "pitcher_found": len(_resolve_pitcher_row(opp_pitcher)) > 0,
+                    "pitcher_found": len(_resolve_pitcher_row(opp_pitcher, allow_fuzzy=False)) > 0,
+                    "platoon_mismatch": platoon_mismatch,
+                    "platoon_note": platoon_note,
+                    "platoon_favorable": platoon_favorable,
                 }
                 all_preds.append(rec)
                 gdata["players"].append(rec)
@@ -1556,6 +1977,11 @@ def generate_html(all_preds, games):
         ph_badge = (f'<span class="ph-badge lhp">vs LHP</span>'
                     if r.get("pitcher_hand") == "L"
                     else f'<span class="ph-badge rhp">vs RHP</span>')
+        platoon_badge = ""
+        if r.get("platoon_note"):
+            badge_text = "Platoon edge" if r.get("platoon_favorable") else "Platoon risk"
+            badge_cls = "green" if r.get("platoon_favorable") else "dark"
+            platoon_badge = f'<span class="badge {badge_cls}">{badge_text}</span>'
         # Build odds source line
         if r['book_odds'] is not None:
             odds_source = (
@@ -1582,6 +2008,7 @@ def generate_html(all_preds, games):
     <span class="player-name">{r['player']}</span>
     <span class="team-badge">{r['team']}</span>
     {ph_badge}
+    {platoon_badge}
     {edge_badge(r['edge'])}
   </div>
   <div class="card-body">
@@ -1607,37 +2034,113 @@ def generate_html(all_preds, games):
     top_prob_html = "\n".join(player_card(r, i+1) for i, r in enumerate(top_prob[:10])) \
                     if top_prob else '<p class="empty">No predictions yet.</p>'
  
-    # Tab 2: Best Value — sort by edge-to-implied RATIO (relative mispricing).
-    # Example: model=14%, book implied=6% → ratio=1.33 ranks higher than
-    #          model=22%, book implied=20% → ratio=0.10, even though raw edge is similar.
-    # This surfaces underdog plays where the book is proportionally way off,
-    # rather than just repeating the highest-probability list.
+    # Tab 2: Best Value — look for real baseball reasons plus price inefficiency.
+    # The goal is not to simply repeat the star-heavy highest-probability board.
+    # We want hitters who have:
+    #   - real contact/power quality
+    #   - a favorable platoon / pitcher-side matchup
+    #   - pitch-mix support
+    #   - odds that still leave room for edge
+    def value_score(r):
+        model_prob = r.get("model_prob") or 0
+        book_implied = r.get("book_implied") or 0
+        edge = r.get("edge") or -999
+        odds = r.get("book_odds") or 9999
+        contact = r.get("h_hr_contact_score") or 0
+        barrel = r.get("h_barrel_pct") or 0
+        hard_hit = r.get("h_hard_hit_pct") or 0
+        n_batted = r.get("h_n_batted") or 0
+        reasons_txt = " ".join(r.get("reasons", [])).lower()
+
+        side_bonus = 0.0
+        if "favorable side" in reasons_txt or "pitcher is especially vulnerable to this side" in reasons_txt:
+            side_bonus += 1.0
+        elif "weaker side" in reasons_txt or r.get("platoon_mismatch"):
+            side_bonus -= 1.5
+
+        pitch_bonus = 0.0
+        if "crushes" in reasons_txt or "strong contact quality vs" in reasons_txt:
+            pitch_bonus += 0.8
+        elif "weaker-than-usual hr profile vs" in reasons_txt or "below average" in reasons_txt:
+            pitch_bonus -= 0.6
+
+        quality_bonus = 0.0
+        if contact >= 0.20:
+            quality_bonus += 1.1
+        elif contact >= 0.17:
+            quality_bonus += 0.6
+        if barrel >= 0.09:
+            quality_bonus += 0.7
+        elif barrel >= 0.07:
+            quality_bonus += 0.3
+        if hard_hit >= 0.36:
+            quality_bonus += 0.5
+
+        sample_bonus = 0.0
+        if n_batted >= 300:
+            sample_bonus += 0.35
+        elif n_batted >= 180:
+            sample_bonus += 0.15
+
+        # Stars with very short odds should not automatically dominate value.
+        star_penalty = 0.0
+        if odds <= 260 and model_prob >= 17:
+            star_penalty -= 1.4
+        elif odds <= 320 and model_prob >= 15:
+            star_penalty -= 0.8
+
+        # Give a boost to mid-tier plus-money plays where the relative mispricing matters.
+        tier_bonus = 0.0
+        if 330 <= odds <= 700:
+            tier_bonus += 0.9
+        elif 701 <= odds <= 900:
+            tier_bonus += 0.45
+
+        rel_edge = edge / max(book_implied, 1)
+        return (
+            rel_edge * 4.5
+            + edge * 0.40
+            + quality_bonus
+            + side_bonus
+            + pitch_bonus
+            + sample_bonus
+            + tier_bonus
+            + star_penalty
+        )
+
     strict_edge = [
         r for r in all_preds
         if r["edge"] is not None and r["edge"] > 2.5
         and r["book_implied"] is not None and r["book_implied"] > 0
-        and r["model_prob"] is not None and r["model_prob"] >= 10.0
+        and r["model_prob"] is not None and r["model_prob"] >= 8.5
         and r["book_odds"] is not None and r["book_odds"] <= 900
+        and not r.get("platoon_mismatch")
         and (
             (
-                r.get("h_n_batted", 0) >= 140
-                and r.get("h_hr_contact_score", 0) >= 0.155
+                r.get("h_n_batted", 0) >= 130
+                and (
+                    r.get("h_hr_contact_score", 0) >= 0.155
+                    or r.get("h_barrel_pct", 0) >= 0.06
+                    or r.get("h_hard_hit_pct", 0) >= 0.31
+                )
             )
             or (
                 r["book_odds"] <= 450
-                and r["edge"] >= 4.0
+                and r["edge"] >= 3.0
+                and (
+                    r.get("h_hr_contact_score", 0) >= 0.145
+                    or r.get("h_barrel_pct", 0) >= 0.055
+                )
             )
             or (
-                r["book_odds"] <= 500
+                330 <= r["book_odds"] <= 650
                 and r.get("h_n_batted", 0) >= 180
-                and r.get("h_hr_contact_score", 0) >= 0.165
+                and r.get("h_hr_contact_score", 0) >= 0.155
+                and r["edge"] >= 2.75
             )
         )
     ]
-    strict_edge.sort(
-        key=lambda r: (r["edge"] or 0) / max(r["book_implied"] or 1, 1),
-        reverse=True,
-    )
+    strict_edge.sort(key=value_score, reverse=True)
     top_edge = strict_edge[:10]
     if len(top_edge) < 5:
         relaxed_edge = [
@@ -1645,12 +2148,13 @@ def generate_html(all_preds, games):
             if r not in top_edge
             and r["edge"] is not None and r["edge"] > 1.5
             and r["book_implied"] is not None and r["book_implied"] > 0
-            and r["model_prob"] is not None and r["model_prob"] >= 9.0
+            and r["model_prob"] is not None and r["model_prob"] >= 7.5
             and r["book_odds"] is not None and r["book_odds"] <= 1000
-            and r.get("h_n_batted", 0) >= 120
+            and not r.get("platoon_mismatch")
+            and r.get("h_n_batted", 0) >= 110
             and (
                 (
-                    r["book_odds"] <= 500
+                    r["book_odds"] <= 550
                     and (
                         r.get("h_hr_contact_score", 0) >= 0.145
                         or r.get("h_barrel_pct", 0) >= 0.055
@@ -1658,21 +2162,39 @@ def generate_html(all_preds, games):
                     )
                 )
                 or (
-                    r["book_odds"] > 500
-                    and r.get("h_n_batted", 0) >= 180
+                    551 <= r["book_odds"] <= 1000
+                    and r.get("h_n_batted", 0) >= 150
                     and (
-                        r.get("h_hr_contact_score", 0) >= 0.16
-                        or r.get("h_barrel_pct", 0) >= 0.065
+                        r.get("h_hr_contact_score", 0) >= 0.155
+                        or r.get("h_barrel_pct", 0) >= 0.06
                     )
-                    and r["edge"] >= 2.5
+                    and r["edge"] >= 2.0
                 )
             )
         ]
-        relaxed_edge.sort(
-            key=lambda r: ((r["edge"] or 0) / max(r["book_implied"] or 1, 1), r["model_prob"] or 0),
-            reverse=True,
-        )
+        relaxed_edge.sort(key=value_score, reverse=True)
         for rec in relaxed_edge:
+            if len(top_edge) >= 5:
+                break
+            top_edge.append(rec)
+
+    if len(top_edge) < 5:
+        fallback_edge = [
+            r for r in all_preds
+            if r not in top_edge
+            and r["edge"] is not None
+            and r["book_implied"] is not None and r["book_implied"] > 0
+            and r["model_prob"] is not None and r["model_prob"] >= 7.5
+            and r["book_odds"] is not None and r["book_odds"] <= 900
+            and not r.get("platoon_mismatch")
+            and (
+                r.get("h_hr_contact_score", 0) >= 0.16
+                or r.get("h_barrel_pct", 0) >= 0.065
+                or r.get("h_hard_hit_pct", 0) >= 0.31
+            )
+        ]
+        fallback_edge.sort(key=value_score, reverse=True)
+        for rec in fallback_edge:
             if len(top_edge) >= 5:
                 break
             top_edge.append(rec)
@@ -1683,7 +2205,7 @@ def generate_html(all_preds, games):
     top_picks_tabs = f"""
   <div class="tab-bar top-tab-bar">
     <button class="top-tab-btn active" onclick="showTopTab('prob')">🎯 Highest Probability</button>
-    <button class="top-tab-btn" onclick="showTopTab('edge')">💰 Best Value / Edge <span class="tab-hint">(quality-screened · 10%+ prob · 2.5%+ edge)</span></button>
+    <button class="top-tab-btn" onclick="showTopTab('edge')">💰 Best Value / Edge <span class="tab-hint">(quality-screened · platoon + pitcher-side + pitch mix)</span></button>
   </div>
   <div id="tab-prob" class="top-tab-panel active">{top_prob_html}</div>
   <div id="tab-edge" class="top-tab-panel">{top_edge_html}</div>"""
@@ -1692,10 +2214,7 @@ def generate_html(all_preds, games):
     def pitcher_box(pname, hand, team_color="rhp"):
         if not pname or pname == "TBD":
             return f'<div class="pitcher-box"><div class="pb-name">TBD <span class="ph-badge {team_color}">?HP</span></div><div class="pb-stats"><span class="no-data">Pitcher TBD</span></div></div>'
-        p_row = pitcher[pitcher["player_name"] == to_statcast_name(pname)]
-        if len(p_row) == 0:
-            last = pname.split()[-1].lower()
-            p_row = pitcher[pitcher["player_name"].str.lower().str.contains(last, na=False)].head(1)
+        p_row = _resolve_pitcher_row(pname, allow_fuzzy=True)
         hc = "lhp" if hand == "L" else "rhp"
         hand_badge = f'<span class="ph-badge {hc}">{hand}HP</span>'
         if len(p_row) == 0:
