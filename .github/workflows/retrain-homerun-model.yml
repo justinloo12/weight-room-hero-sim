@@ -39,7 +39,18 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add homerun_data_all.csv
+                - name: Push retrained outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add hitter_profiles.csv
+          git add pitcher_profiles.csv
+          git add hr_model.pkl
+          git add model_features.csv
+          git add index.html
+          git diff --staged --quiet || git commit -m "retrain model $(date -u '+%Y-%m-%d')"
+          git push
+
           git add hitter_profiles.csv
           git add pitcher_profiles.csv
           git add homerun_data_enriched.csv
