@@ -499,6 +499,16 @@ def _batter_hand_info(h_row):
     batter_right = int(round(batter_right)) if batter_right is not None else 0
     return batter_right, ("rhh" if batter_right == 1 else "lhh")
 
+def _resolve_pitcher_row(pitcher_name):
+    if not pitcher_name or pitcher_name == "TBD":
+        return pd.DataFrame()
+    exact = pitcher[pitcher["player_name"] == to_statcast_name(pitcher_name)]
+    if len(exact) > 0:
+        return exact.head(1)
+    last = pitcher_name.split()[-1].lower()
+    fuzzy = pitcher[pitcher["player_name"].str.lower().str.contains(last, na=False)].head(1)
+    return fuzzy
+
 def _derive_matchup_feature(feat, hr, pr, batter_side_suffix):
     if feat == "h_hr_contact_score":
         barrel = _safe_float(hr.get("h_barrel_pct"))
@@ -699,12 +709,7 @@ def _reason_priority(reason):
  
 def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None):
     h_row = hitter[hitter["batter"] == batter_id]
-    p_row = pd.DataFrame()
-    if pitcher_name and pitcher_name != "TBD":
-        p_row = pitcher[pitcher["player_name"] == to_statcast_name(pitcher_name)]
-        if len(p_row) == 0:
-            last = pitcher_name.split()[-1].lower()
-            p_row = pitcher[pitcher["player_name"].str.lower().str.contains(last, na=False)].head(1)
+    p_row = _resolve_pitcher_row(pitcher_name)
 
     pitcher_found = len(p_row) > 0
     batter_right, batter_side_suffix = _batter_hand_info(h_row)
@@ -824,6 +829,24 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         n_batted = float(hr["h_n_batted"]) if "h_n_batted" in hitter.columns and not pd.isna(hr.get("h_n_batted")) else 50
         weight   = min(0.90, max(0.03, (n_batted - 10) / 260.0))
         prob_raw = weight * prob_raw + (1 - weight) * LEAGUE_AB_RATE
+
+        # ── Platoon sanity adjustment ──────────────────────────
+        matched_split = _safe_float(hr.get("h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp"))
+        off_split = _safe_float(hr.get("h_hr_vs_lhp" if pitcher_hand == "R" else "h_hr_vs_rhp"))
+        base_rate = _safe_float(hr.get("h_hr_rate")) or LEAGUE_AB_RATE
+        if matched_split is not None:
+            platoon_sample = float(hr.get("h_n_batted", 0) or 0)
+            platoon_weight = min(1.0, max(0.0, (platoon_sample - 60.0) / 220.0))
+            matched_shrunk = platoon_weight * matched_split + (1.0 - platoon_weight) * base_rate
+            if matched_shrunk < base_rate * 0.78:
+                prob_raw *= 0.86
+            elif matched_shrunk < base_rate * 0.90:
+                prob_raw *= 0.93
+            elif matched_shrunk > base_rate * 1.18:
+                prob_raw *= 1.05
+        if matched_split is not None and off_split is not None and pitcher_hand in {"R", "L"}:
+            if matched_split < off_split * 0.82:
+                prob_raw *= 0.92
  
         # ── Z-score signal multiplier ──────────────────────────
         # Clamp combined_z to ±2.0 so one freak small-sample stat
@@ -1288,6 +1311,7 @@ def build_dashboard():
                     "h_hr_contact_score": float(h_prof.iloc[0].get("h_hr_contact_score", 0)) if len(h_prof) else 0.0,
                     "h_barrel_pct": float(h_prof.iloc[0].get("h_barrel_pct", 0)) if len(h_prof) else 0.0,
                     "h_hard_hit_pct": float(h_prof.iloc[0].get("h_hard_hit_pct", 0)) if len(h_prof) else 0.0,
+                    "pitcher_found": len(_resolve_pitcher_row(opp_pitcher)) > 0,
                 }
                 all_preds.append(rec)
                 gdata["players"].append(rec)
@@ -1523,7 +1547,7 @@ def generate_html(all_preds, games):
         if not reasons_html:
             reasons_html = "<li>Limited data for this matchup</li>"
  
-        pitcher_in_model = len(pitcher[pitcher["player_name"] == to_statcast_name(r["pitcher"])]) > 0
+        pitcher_in_model = bool(r.get("pitcher_found"))
         pitcher_note = "" if pitcher_in_model else \
             '<p class="note">⚠️ Pitcher not in model — using hitter data only</p>'
         book_lbl = BOOK_NAMES.get(r.get("book"), r.get("book", "Sportsbook").title())
