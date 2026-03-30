@@ -23,36 +23,30 @@ print(f"  Load time: {time.time() - start_time:.1f}s")
 # No raw at-bat features — only what's known BEFORE the game.
  
 HITTER_FEATURES = [
-    # Power & contact quality (equal weight)
-    "h_barrel_pct",       # how often they barrel the ball
-    "h_exit_velo",        # average exit velocity
-    "h_hard_hit_pct",     # hard hit rate (95+ mph EV)
-    "h_launch_angle",     # average launch angle
-    "h_sweet_spot_pct",   # ideal launch-angle band frequency
-    "h_pull_air_pct",     # pull-side fly ball rate
-    "h_hr_rate",          # overall HR rate
-    # vs pitch types (equal weight)
-    "h_hr_vs_4seam",
-    "h_hr_vs_slider",
-    "h_hr_vs_change",
-    "h_hr_vs_sinker",
-    "h_ev_vs_4seam",
-    "h_ev_vs_slider",
-    "h_ev_vs_change",
-    # vs pitcher handedness
-    "h_hr_vs_rhp",
-    "h_hr_vs_lhp",
-    # quality of contact vs pitch
-    "h_xwoba_vs_4seam",
-    "h_xwoba_vs_slider",
-    # zone discipline
-    "h_zone_contact_pct",
+    # Core HR shape
+    "h_barrel_pct",
+    "h_exit_velo",
+    "h_hard_hit_pct",
+    "h_launch_angle",
+    "h_sweet_spot_pct",
+    "h_pull_air_pct",
+    "h_hr_rate",
     "h_hr_contact_score",
     "h_lifted_power_score",
+    # Handedness backbone
+    "h_hr_rate_vs_hand",
+    "h_xwoba_vs_hand",
+    "h_barrel_pct_vs_hand",
+    "h_hard_hit_pct_vs_hand",
+    "h_launch_angle_vs_hand",
+    "h_sweet_spot_pct_vs_hand",
+    "h_pull_air_pct_vs_hand",
+    "h_hr_contact_score_vs_hand",
+    "h_lifted_power_score_vs_hand",
 ]
  
 PITCHER_FEATURES = [
-    # Vulnerability (equal weight)
+    # Overall vulnerability
     "p_hr_rate_allowed",
     "p_barrel_pct_allowed",
     "p_hard_hit_pct_allowed",
@@ -60,70 +54,33 @@ PITCHER_FEATURES = [
     "p_launch_angle_allowed",
     "p_sweet_spot_pct_allowed",
     "p_pull_air_pct_allowed",
-    # Pitch characteristics
-    "p_spin_into_barrel_pct",
-    "p_in_zone_pct",
-    "p_arm_angle",
-    # Spin rates for all pitch types
-    "p_spin_4seam",
-    "p_spin_sinker",
-    "p_spin_slider",
-    "p_spin_change",
-    "p_spin_curve",
-    "p_spin_cutter",
-    # Pitch mix for fastball (RHH vs LHH)
-    "p_4seam_usage_rhh",
-    "p_4seam_usage_lhh",
-    # Pitch mix for sinker (RHH vs LHH)
-    "p_sinker_usage_rhh",
-    "p_sinker_usage_lhh",
-    # Pitch mix for slider (RHH vs LHH)
-    "p_slider_usage_rhh",
-    "p_slider_usage_lhh",
-    # Pitch mix for changeup (RHH vs LHH)
-    "p_change_usage_rhh",
-    "p_change_usage_lhh",
-    # Pitch mix for curve (RHH vs LHH)
-    "p_curve_usage_rhh",
-    "p_curve_usage_lhh",
-    # Pitch mix for cutter (RHH vs LHH)
-    "p_cutter_usage_rhh",
-    "p_cutter_usage_lhh",
     "p_hr_contact_risk",
     "p_lift_damage_risk",
+    # Side-specific weakness
+    "p_hr_rate_allowed_vs_side",
+    "p_barrel_pct_allowed_vs_side",
+    "p_hard_hit_pct_allowed_vs_side",
+    "p_exit_velo_allowed_vs_side",
+    "p_launch_angle_allowed_vs_side",
+    "p_sweet_spot_pct_allowed_vs_side",
+    "p_pull_air_pct_allowed_vs_side",
+    "p_hr_contact_risk_vs_side",
+    "p_lift_damage_risk_vs_side",
 ]
 
 MATCHUP_FEATURES = [
-    "m_sweet_spot_contact_edge",
-    "m_zone_attack_edge",
     "m_barrel_matchup_score",
     "m_lift_matchup_score",
     "m_hr_contact_matchup",
     "m_lifted_power_matchup",
-    "p_4seam_usage_matchup",
-    "p_sinker_usage_matchup",
-    "p_slider_usage_matchup",
-    "p_change_usage_matchup",
-    "p_curve_usage_matchup",
-    "p_cutter_usage_matchup",
-    "m_4seam_hr_exposure",
-    "m_4seam_xwoba_exposure",
-    "m_4seam_ev_delta",
-    "m_sinker_hr_exposure",
-    "m_sinker_xwoba_exposure",
-    "m_sinker_ev_delta",
-    "m_slider_hr_exposure",
-    "m_slider_xwoba_exposure",
-    "m_slider_ev_delta",
-    "m_change_hr_exposure",
-    "m_change_xwoba_exposure",
-    "m_change_ev_delta",
-    "m_curve_hr_exposure",
-    "m_curve_xwoba_exposure",
-    "m_curve_ev_delta",
-    "m_cutter_hr_exposure",
-    "m_cutter_xwoba_exposure",
-    "m_cutter_ev_delta",
+    "m_handed_hr_matchup",
+    "m_handed_contact_matchup",
+    "m_handed_lift_matchup",
+    "m_pitch_hr_matchup",
+    "m_pitch_contact_matchup",
+    "m_pitch_ev_matchup",
+    "m_sweet_spot_contact_edge",
+    "m_zone_attack_edge",
 ]
 
 CONTEXT_FEATURES = [
