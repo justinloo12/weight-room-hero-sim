@@ -1180,12 +1180,12 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
             power_mult += 0.04
 
         heuristic_ab = (
-            base_rate * 0.45
+            base_rate * 0.55
             + matched_shrunk * 0.25
-            + side_pitcher_hr * 0.20
-            + LEAGUE_AB_RATE * 0.10
+            + side_pitcher_hr * 0.15
+            + LEAGUE_AB_RATE * 0.05
         ) * power_mult * blended_mult
-        heuristic_ab = max(0.006, min(0.11, heuristic_ab))
+        heuristic_ab = max(0.006, min(0.13, heuristic_ab))
 
         # Blend the model with the baseball prior. Established hitters get more
         # weight on the prior so stars don't collapse to the floor from an
@@ -1253,7 +1253,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         # curve so obvious sluggers do not look absurdly underpriced.
         n_pa = 3.9
         prob_raw_clamped = max(0.001, min(0.18, prob_raw))
-        heuristic_clamped = max(0.004, min(0.14, heuristic_ab))
+        heuristic_clamped = max(0.004, min(0.17, heuristic_ab))
 
         # Weight the custom baseball prior more heavily than the raw calibrated
         # model because the latter is still too conservative for HR pricing.
@@ -1273,11 +1273,11 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         if elite_power or upper_tier_power:
             display_ab = max(display_ab, heuristic_clamped * (0.92 if upper_tier_power else 0.98))
 
-        display_ab = max(0.006, min(0.15, display_ab))
+        display_ab = max(0.006, min(0.17, display_ab))
         prob = (1.0 - (1.0 - display_ab) ** n_pa) * 100
-        if prob > 23.0:
-            prob = 23.0 + (prob - 23.0) * 0.55
-        prob = max(3.0, min(30.0, prob))
+        if prob > 30.0:
+            prob = 30.0 + (prob - 30.0) * 0.60
+        prob = max(3.0, min(42.0, prob))
  
     else:
         # --- Z-score fallback (no trained model) ---
@@ -1683,6 +1683,7 @@ def build_dashboard():
                 book_implied = od["book_implied"] if od else None
                 book_name    = od["book"]         if od else None
                 n_books      = od.get("n_books", 1) if od else 0
+
                 edge = round(model_prob - book_implied, 2) \
                        if (model_prob is not None and book_implied is not None) else None
  
@@ -2034,13 +2035,8 @@ def generate_html(all_preds, games):
     top_prob_html = "\n".join(player_card(r, i+1) for i, r in enumerate(top_prob[:10])) \
                     if top_prob else '<p class="empty">No predictions yet.</p>'
  
-    # Tab 2: Best Value — look for real baseball reasons plus price inefficiency.
-    # The goal is not to simply repeat the star-heavy highest-probability board.
-    # We want hitters who have:
-    #   - real contact/power quality
-    #   - a favorable platoon / pitcher-side matchup
-    #   - pitch-mix support
-    #   - odds that still leave room for edge
+    # Tab 2: Best Value — sorted by highest raw edge, filtered to +500-+1000 odds only.
+    # This excludes star players (short odds) and extreme longshots.
     def value_score(r):
         model_prob = r.get("model_prob") or 0
         book_implied = r.get("book_implied") or 0
@@ -2108,96 +2104,14 @@ def generate_html(all_preds, games):
             + star_penalty
         )
 
-    strict_edge = [
+    # Filter to +500–+1000 range only, require a real edge, sort by raw edge descending
+    top_edge = [
         r for r in all_preds
-        if r["edge"] is not None and r["edge"] > 2.5
+        if r["edge"] is not None and r["edge"] > 0
         and r["book_implied"] is not None and r["book_implied"] > 0
-        and r["model_prob"] is not None and r["model_prob"] >= 8.5
-        and r["book_odds"] is not None and r["book_odds"] <= 900
-        and not r.get("platoon_mismatch")
-        and (
-            (
-                r.get("h_n_batted", 0) >= 130
-                and (
-                    r.get("h_hr_contact_score", 0) >= 0.155
-                    or r.get("h_barrel_pct", 0) >= 0.06
-                    or r.get("h_hard_hit_pct", 0) >= 0.31
-                )
-            )
-            or (
-                r["book_odds"] <= 450
-                and r["edge"] >= 3.0
-                and (
-                    r.get("h_hr_contact_score", 0) >= 0.145
-                    or r.get("h_barrel_pct", 0) >= 0.055
-                )
-            )
-            or (
-                330 <= r["book_odds"] <= 650
-                and r.get("h_n_batted", 0) >= 180
-                and r.get("h_hr_contact_score", 0) >= 0.155
-                and r["edge"] >= 2.75
-            )
-        )
+        and r["book_odds"] is not None and 500 <= r["book_odds"] <= 1000
     ]
-    strict_edge.sort(key=value_score, reverse=True)
-    top_edge = strict_edge[:10]
-    if len(top_edge) < 5:
-        relaxed_edge = [
-            r for r in all_preds
-            if r not in top_edge
-            and r["edge"] is not None and r["edge"] > 1.5
-            and r["book_implied"] is not None and r["book_implied"] > 0
-            and r["model_prob"] is not None and r["model_prob"] >= 7.5
-            and r["book_odds"] is not None and r["book_odds"] <= 1000
-            and not r.get("platoon_mismatch")
-            and r.get("h_n_batted", 0) >= 110
-            and (
-                (
-                    r["book_odds"] <= 550
-                    and (
-                        r.get("h_hr_contact_score", 0) >= 0.145
-                        or r.get("h_barrel_pct", 0) >= 0.055
-                        or r.get("h_hard_hit_pct", 0) >= 0.29
-                    )
-                )
-                or (
-                    551 <= r["book_odds"] <= 1000
-                    and r.get("h_n_batted", 0) >= 150
-                    and (
-                        r.get("h_hr_contact_score", 0) >= 0.155
-                        or r.get("h_barrel_pct", 0) >= 0.06
-                    )
-                    and r["edge"] >= 2.0
-                )
-            )
-        ]
-        relaxed_edge.sort(key=value_score, reverse=True)
-        for rec in relaxed_edge:
-            if len(top_edge) >= 5:
-                break
-            top_edge.append(rec)
-
-    if len(top_edge) < 5:
-        fallback_edge = [
-            r for r in all_preds
-            if r not in top_edge
-            and r["edge"] is not None
-            and r["book_implied"] is not None and r["book_implied"] > 0
-            and r["model_prob"] is not None and r["model_prob"] >= 7.5
-            and r["book_odds"] is not None and r["book_odds"] <= 900
-            and not r.get("platoon_mismatch")
-            and (
-                r.get("h_hr_contact_score", 0) >= 0.16
-                or r.get("h_barrel_pct", 0) >= 0.065
-                or r.get("h_hard_hit_pct", 0) >= 0.31
-            )
-        ]
-        fallback_edge.sort(key=value_score, reverse=True)
-        for rec in fallback_edge:
-            if len(top_edge) >= 5:
-                break
-            top_edge.append(rec)
+    top_edge.sort(key=lambda r: r["edge"] or 0, reverse=True)
 
     top_edge_html = "\n".join(player_card(r, i+1) for i, r in enumerate(top_edge[:10])) \
                     if top_edge else '<p class="empty">No value picks with odds posted yet.</p>'
