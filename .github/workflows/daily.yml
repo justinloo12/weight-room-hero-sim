@@ -34,7 +34,7 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python dashboard.py
 
-           - name: Push updates
+      - name: Push updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
