@@ -189,7 +189,7 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-04-11,best_value_top10,4,Nick Kurtz,701762,ATH,ATH@NYM,Kodai Senga,William Hill,475,28.82,17.39,11.43,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,best_value_top10,5,Munetaka Murakami,808959,CWS,CWS@KC,Michael Wacha,William Hill,390,30.65,20.41,10.24,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,best_value_top10,6,Owen Caissie,683357,MIA,MIA@DET,Casey Mize,William Hill,850,15.59,10.53,5.06,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-11,best_value_top10,7,Francisco Alvarez,682626,NYM,ATH@NYM,Jacob Lopez,William Hill,475,25.73,17.39,8.34,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-11,best_value_top10,7,Francisco Alvarez,682626,NYM,ATH@NYM,Jacob Lopez,William Hill,475,25.73,17.39,8.34,100.00,,,,,,,,,,,,,,,,,,,,2026-04-11 06:52 PM ET
 2026-04-11,best_value_top10,8,Konnor Griffin,804606,PIT,PIT@CHC,Edward Cabrera,William Hill,1100,11.45,8.33,3.12,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,best_value_top10,9,Oneil Cruz,665833,PIT,PIT@CHC,Edward Cabrera,William Hill,625,18.80,13.79,5.01,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,best_value_top10,10,Justin Crawford,702222,PHI,AZ@PHI,Brandon Pfaadt,William Hill,1300,9.50,7.14,2.36,100.00,,,,,,,,,,,,,,,,,,,,
@@ -200,6 +200,6 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-04-11,highest_probability_top10,5,Aaron Judge,592450,NYY,NYY@TB,Nick Martinez,William Hill,220,31.19,31.25,-0.06,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,highest_probability_top10,6,Munetaka Murakami,808959,CWS,CWS@KC,Michael Wacha,William Hill,390,30.65,20.41,10.24,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,highest_probability_top10,7,Nick Kurtz,701762,ATH,ATH@NYM,Kodai Senga,William Hill,475,28.82,17.39,11.43,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-11,highest_probability_top10,8,Francisco Alvarez,682626,NYM,ATH@NYM,Jacob Lopez,William Hill,475,25.73,17.39,8.34,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-11,highest_probability_top10,8,Francisco Alvarez,682626,NYM,ATH@NYM,Jacob Lopez,William Hill,475,25.73,17.39,8.34,100.00,,,,,,,,,,,,,,,,,,,,2026-04-11 06:52 PM ET
 2026-04-11,highest_probability_top10,9,Chase DeLauter,800050,CLE,CLE@ATL,Martín Pérez,William Hill,575,25.57,14.81,10.76,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-11,highest_probability_top10,10,Eugenio Suárez,553993,CIN,LAA@CIN,George Klassen,William Hill,320,23.77,23.81,-0.04,100.00,,,,,,,,,,,,,,,,,,,,
