@@ -231,10 +231,10 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-04-13,best_value_top10,6,Victor Caratini,605170,MIN,BOS@MIN,Garrett Crochet,William Hill,1100,10.64,8.33,2.31,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-13,best_value_top10,7,Matt Wallner,670242,MIN,BOS@MIN,Garrett Crochet,William Hill,750,14.34,11.76,2.58,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-13,best_value_top10,8,Owen Caissie,683357,MIA,MIA@ATL,Grant Holmes,William Hill,625,16.01,13.79,2.22,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-13,best_value_top10,9,Aaron Judge,592450,NYY,LAA@NYY,Yusei Kikuchi,William Hill,174,40.11,36.50,3.61,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,9,Aaron Judge,592450,NYY,LAA@NYY,Yusei Kikuchi,William Hill,174,40.11,36.50,3.61,100.00,,,,,,,,,,,,,,,,,,,,2026-04-13 07:44 PM ET
 2026-04-13,best_value_top10,10,Giancarlo Stanton,519317,NYY,LAA@NYY,Yusei Kikuchi,William Hill,255,30.70,28.17,2.53,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-13,highest_probability_top10,1,Aaron Judge,592450,NYY,LAA@NYY,Yusei Kikuchi,William Hill,174,40.11,36.50,3.61,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-13,highest_probability_top10,2,Kyle Schwarber,656941,PHI,CHC@PHI,Javier Assad,William Hill,205,32.69,32.79,-0.10,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,1,Aaron Judge,592450,NYY,LAA@NYY,Yusei Kikuchi,William Hill,174,40.11,36.50,3.61,100.00,,,,,,,,,,,,,,,,,,,,2026-04-13 07:44 PM ET
+2026-04-13,highest_probability_top10,2,Kyle Schwarber,656941,PHI,CHC@PHI,Javier Assad,William Hill,205,32.69,32.79,-0.10,100.00,,,,,,,,,,,,,,,,,,,,2026-04-13 07:44 PM ET
 2026-04-13,highest_probability_top10,3,Giancarlo Stanton,519317,NYY,LAA@NYY,Yusei Kikuchi,William Hill,255,30.70,28.17,2.53,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-13,highest_probability_top10,4,Chase DeLauter,800050,CLE,CLE@STL,Matthew Liberatore,William Hill,525,28.72,16.00,12.72,100.00,,,,,,,,,,,,,,,,,,,,
 2026-04-13,highest_probability_top10,5,Nick Kurtz,701762,ATH,TEX@ATH,Nathan Eovaldi,William Hill,370,28.61,21.28,7.33,100.00,,,,,,,,,,,,,,,,,,,,
