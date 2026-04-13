@@ -203,23 +203,43 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-04-11,highest_probability_top10,8,Francisco Alvarez,682626,NYM,ATH@NYM,Jacob Lopez,William Hill,475,25.73,17.39,8.34,100.00,HR,475.00,,,,,,,,,,,,,,,,,,2026-04-11 06:52 PM ET
 2026-04-11,highest_probability_top10,9,Chase DeLauter,800050,CLE,CLE@ATL,Martín Pérez,William Hill,575,25.57,14.81,10.76,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
 2026-04-11,highest_probability_top10,10,Eugenio Suárez,553993,CIN,LAA@CIN,George Klassen,William Hill,320,23.77,23.81,-0.04,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,1,Jose Fernandez,699912,AZ,AZ@PHI,Andrew Painter,William Hill,625,35.89,13.79,22.10,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,2,Chase DeLauter,800050,CLE,CLE@ATL,Chris Sale,William Hill,700,25.62,12.50,13.12,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,3,Munetaka Murakami,808959,CWS,CWS@KC,Noah Cameron,William Hill,425,34.63,19.05,15.58,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,4,Nick Kurtz,701762,ATH,ATH@NYM,Freddy Peralta,William Hill,500,30.15,16.67,13.48,100.00,,,,,,,,,,,,,,,,,,,,2026-04-12 03:09 PM ET
-2026-04-12,best_value_top10,5,Gary Sánchez,596142,MIL,WSH@MIL,Zack Littell,William Hill,475,25.25,17.39,7.86,100.00,,,,,,,,,,,,,,,,,,,,2026-04-12 04:39 PM ET
-2026-04-12,best_value_top10,6,Daniel Susac,691740,SF,SF@BAL,Cade Povich,William Hill,750,16.26,11.76,4.50,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,7,TJ Rumfield,681198,COL,COL@SD,Nick Pivetta,William Hill,700,16.99,12.50,4.49,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,8,Colson Montgomery,695657,CWS,CWS@KC,Noah Cameron,William Hill,475,21.09,17.39,3.70,100.00,,,,,,,,,,,,,,,,,,,,2026-04-12 06:47 PM ET
-2026-04-12,best_value_top10,9,Deyvison De Los Santos,691277,MIA,MIA@DET,Tarik Skubal,William Hill,750,14.23,11.76,2.47,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,best_value_top10,10,Francisco Alvarez,682626,NYM,ATH@NYM,Aaron Civale,Fliff,485,19.96,17.09,2.87,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,1,Jose Fernandez,699912,AZ,AZ@PHI,Andrew Painter,William Hill,625,35.89,13.79,22.10,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,2,Munetaka Murakami,808959,CWS,CWS@KC,Noah Cameron,William Hill,425,34.63,19.05,15.58,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,3,Shohei Ohtani,660271,LAD,TEX@LAD,Jacob deGrom,William Hill,192,34.35,34.25,0.10,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,4,Kyle Schwarber,656941,PHI,AZ@PHI,Zac Gallen,William Hill,225,34.23,30.77,3.46,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,5,Aaron Judge,592450,NYY,NYY@TB,Drew Rasmussen,William Hill,265,31.23,27.40,3.83,100.00,,,,,,,,,,,,,,,,,,,,2026-04-12 04:39 PM ET
-2026-04-12,highest_probability_top10,6,Nick Kurtz,701762,ATH,ATH@NYM,Freddy Peralta,William Hill,500,30.15,16.67,13.48,100.00,,,,,,,,,,,,,,,,,,,,2026-04-12 03:09 PM ET
-2026-04-12,highest_probability_top10,7,Chase DeLauter,800050,CLE,CLE@ATL,Chris Sale,William Hill,700,25.62,12.50,13.12,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,8,Gary Sánchez,596142,MIL,WSH@MIL,Zack Littell,William Hill,475,25.25,17.39,7.86,100.00,,,,,,,,,,,,,,,,,,,,2026-04-12 04:39 PM ET
-2026-04-12,highest_probability_top10,9,Byron Buxton,621439,MIN,MIN@TOR,Max Scherzer,Fliff,300,22.24,25.00,-2.76,100.00,,,,,,,,,,,,,,,,,,,,
-2026-04-12,highest_probability_top10,10,Daulton Varsho,662139,TOR,MIN@TOR,Taj Bradley,William Hill,425,21.89,19.05,2.84,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,1,Jose Fernandez,699912,AZ,AZ@PHI,Andrew Painter,William Hill,625,35.89,13.79,22.10,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,2,Chase DeLauter,800050,CLE,CLE@ATL,Chris Sale,William Hill,700,25.62,12.50,13.12,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,3,Munetaka Murakami,808959,CWS,CWS@KC,Noah Cameron,William Hill,425,34.63,19.05,15.58,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,4,Nick Kurtz,701762,ATH,ATH@NYM,Freddy Peralta,William Hill,500,30.15,16.67,13.48,100.00,HR,500.00,,,,,,,,,,,,,,,,,,2026-04-12 03:09 PM ET
+2026-04-12,best_value_top10,5,Gary Sánchez,596142,MIL,WSH@MIL,Zack Littell,William Hill,475,25.25,17.39,7.86,100.00,HR,475.00,,,,,,,,,,,,,,,,,,2026-04-12 04:39 PM ET
+2026-04-12,best_value_top10,6,Daniel Susac,691740,SF,SF@BAL,Cade Povich,William Hill,750,16.26,11.76,4.50,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,7,TJ Rumfield,681198,COL,COL@SD,Nick Pivetta,William Hill,700,16.99,12.50,4.49,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,8,Colson Montgomery,695657,CWS,CWS@KC,Noah Cameron,William Hill,475,21.09,17.39,3.70,100.00,HR,475.00,,,,,,,,,,,,,,,,,,2026-04-12 06:47 PM ET
+2026-04-12,best_value_top10,9,Deyvison De Los Santos,691277,MIA,MIA@DET,Tarik Skubal,William Hill,750,14.23,11.76,2.47,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,best_value_top10,10,Francisco Alvarez,682626,NYM,ATH@NYM,Aaron Civale,Fliff,485,19.96,17.09,2.87,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,1,Jose Fernandez,699912,AZ,AZ@PHI,Andrew Painter,William Hill,625,35.89,13.79,22.10,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,2,Munetaka Murakami,808959,CWS,CWS@KC,Noah Cameron,William Hill,425,34.63,19.05,15.58,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,3,Shohei Ohtani,660271,LAD,TEX@LAD,Jacob deGrom,William Hill,192,34.35,34.25,0.10,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,4,Kyle Schwarber,656941,PHI,AZ@PHI,Zac Gallen,William Hill,225,34.23,30.77,3.46,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,5,Aaron Judge,592450,NYY,NYY@TB,Drew Rasmussen,William Hill,265,31.23,27.40,3.83,100.00,HR,265.00,,,,,,,,,,,,,,,,,,2026-04-12 04:39 PM ET
+2026-04-12,highest_probability_top10,6,Nick Kurtz,701762,ATH,ATH@NYM,Freddy Peralta,William Hill,500,30.15,16.67,13.48,100.00,HR,500.00,,,,,,,,,,,,,,,,,,2026-04-12 03:09 PM ET
+2026-04-12,highest_probability_top10,7,Chase DeLauter,800050,CLE,CLE@ATL,Chris Sale,William Hill,700,25.62,12.50,13.12,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,8,Gary Sánchez,596142,MIL,WSH@MIL,Zack Littell,William Hill,475,25.25,17.39,7.86,100.00,HR,475.00,,,,,,,,,,,,,,,,,,2026-04-12 04:39 PM ET
+2026-04-12,highest_probability_top10,9,Byron Buxton,621439,MIN,MIN@TOR,Max Scherzer,Fliff,300,22.24,25.00,-2.76,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-12,highest_probability_top10,10,Daulton Varsho,662139,TOR,MIN@TOR,Taj Bradley,William Hill,425,21.89,19.05,2.84,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,1,Jared Young,676724,NYM,NYM@LAD,Justin Wrobleski,William Hill,1500,15.52,6.25,9.27,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,2,Chase DeLauter,800050,CLE,CLE@STL,Matthew Liberatore,William Hill,525,28.72,16.00,12.72,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,3,Nick Kurtz,701762,ATH,TEX@ATH,Nathan Eovaldi,William Hill,390,28.61,20.41,8.20,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,4,Tristan Gray,656484,MIN,BOS@MIN,Garrett Crochet,hardrockbet_oh,800,15.50,11.11,4.39,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,5,Byron Buxton,621439,MIN,BOS@MIN,Garrett Crochet,William Hill,475,23.31,17.39,5.92,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,6,Victor Caratini,605170,MIN,BOS@MIN,Garrett Crochet,William Hill,1100,10.64,8.33,2.31,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,7,Matt Wallner,670242,MIN,BOS@MIN,Garrett Crochet,William Hill,750,14.34,11.76,2.58,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,8,Owen Caissie,683357,MIA,MIA@ATL,Grant Holmes,William Hill,625,16.01,13.79,2.22,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,9,Aaron Judge,592450,NYY,LAA@NYY,Yusei Kikuchi,William Hill,180,39.88,35.71,4.17,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,best_value_top10,10,Giancarlo Stanton,519317,NYY,LAA@NYY,Yusei Kikuchi,William Hill,255,30.83,28.17,2.66,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,1,Aaron Judge,592450,NYY,LAA@NYY,Yusei Kikuchi,William Hill,180,39.88,35.71,4.17,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,2,Kyle Schwarber,656941,PHI,CHC@PHI,Javier Assad,William Hill,205,32.50,32.79,-0.29,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,3,Giancarlo Stanton,519317,NYY,LAA@NYY,Yusei Kikuchi,William Hill,255,30.83,28.17,2.66,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,4,Chase DeLauter,800050,CLE,CLE@STL,Matthew Liberatore,William Hill,525,28.72,16.00,12.72,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,5,Nick Kurtz,701762,ATH,TEX@ATH,Nathan Eovaldi,William Hill,390,28.61,20.41,8.20,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,6,Cal Raleigh,663728,SEA,HOU@SEA,Mike Burrows,William Hill,305,26.38,24.69,1.69,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,7,Shohei Ohtani,660271,LAD,NYM@LAD,David Peterson,William Hill,245,25.48,28.99,-3.51,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,8,Byron Buxton,621439,MIN,BOS@MIN,Garrett Crochet,William Hill,475,23.31,17.39,5.92,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,9,Oneil Cruz,665833,PIT,WSH@PIT,Cade Cavalli,William Hill,425,20.83,19.05,1.78,100.00,,,,,,,,,,,,,,,,,,,,
+2026-04-13,highest_probability_top10,10,Pete Alonso,624413,BAL,AZ@BAL,Ryne Nelson,William Hill,305,19.07,24.69,-5.62,100.00,,,,,,,,,,,,,,,,,,,,
