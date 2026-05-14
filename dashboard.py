@@ -1969,12 +1969,14 @@ def generate_html(all_preds, games):
         if e >= 0:    return f'<span class="badge yellow">+{e:.1f}% edge</span>'
         return              f'<span class="badge dark">Avoid ({e:.1f}%)</span>'
  
-    def prob_bar(p):
-        if p is None: return "—"
-        color = "#e74c3c" if p >= 15 else "#e67e22" if p >= 10 else "#3498db"
-        return (f'<div class="prob-wrap">'
-                f'<div class="prob-bar" style="width:{min(p*5,100):.0f}%;background:{color}"></div>'
-                f'<span class="prob-label">{p:.1f}%</span></div>')
+    def stars_html(p):
+        if p is None: return '<span class="stars-wrap muted">—</span>'
+        if p >= 18:   n, cls = 5, "s5"
+        elif p >= 14: n, cls = 4, "s4"
+        elif p >= 10: n, cls = 3, "s3"
+        elif p >= 7:  n, cls = 2, "s2"
+        else:         n, cls = 1, "s1"
+        return f'<span class="stars-wrap {cls}">{"★" * n}{"☆" * (5 - n)}</span>'
  
     def player_card(r, rank=None):
         rank_html = f'<span class="rank">#{rank}</span>' if rank else ""
@@ -1989,7 +1991,7 @@ def generate_html(all_preds, games):
                 reasons_html += f'<li>{reason}</li>'
         if not reasons_html:
             reasons_html = "<li>Limited data for this matchup</li>"
- 
+
         pitcher_in_model = bool(r.get("pitcher_found"))
         pitcher_note = "" if pitcher_in_model else \
             '<p class="note">⚠️ Pitcher not in model — using hitter data only</p>'
@@ -2011,7 +2013,7 @@ def generate_html(all_preds, games):
                 f'<span class="book-tag">{book_lbl}</span>'
                 f'&nbsp;<span class="odds-num">{odds_fmt(r["book_odds"])}</span>'
                 f'&nbsp;<span class="implied-num">({r["book_implied"]:.1f}% implied)</span>'
-                f'&nbsp;→&nbsp;<span class="model-num">Model: {r["model_prob"]:.1f}%</span>'
+                f'&nbsp;→&nbsp;<span class="model-num">Matchup: {stars_html(r["model_prob"])}</span>'
                 f'&nbsp;→&nbsp;<span class="edge-num {"edge-pos" if (r["edge"] or 0) > 0 else "edge-neg"}">Edge: {edge_str}</span>'
                 f'</div>'
             )
@@ -2019,10 +2021,10 @@ def generate_html(all_preds, games):
             odds_source = (
                 f'<div class="odds-source">'
                 f'<span class="no-odds">No odds posted yet</span>'
-                f'&nbsp;·&nbsp;<span class="model-num">Model: {r["model_prob"]:.1f}%</span>'
+                f'&nbsp;·&nbsp;<span class="model-num">Matchup: {stars_html(r["model_prob"])}</span>'
                 f'</div>'
             ) if r["model_prob"] else ''
- 
+
         return f"""
 <div class="card">
   <div class="card-header">
@@ -2031,15 +2033,12 @@ def generate_html(all_preds, games):
     <span class="team-badge">{r['team']}</span>
     {ph_badge}
     {platoon_badge}
+    <span class="header-spacer"></span>
+    {stars_html(r['model_prob'])}
     {edge_badge(r['edge'])}
   </div>
   <div class="card-body">
     {odds_source}
-    <div class="stats-row" style="margin-top:10px">
-      <div class="stat"><label>Model Prob</label>{prob_bar(r['model_prob'])}</div>
-      <div class="stat"><label>Implied %</label><span>{f"{r['book_implied']:.1f}%" if r['book_implied'] else "—"}</span></div>
-      <div class="stat"><label>Edge</label><span class="edge-val {"edge-pos" if (r["edge"] or 0) > 0 else "edge-neg"}">{edge_str}</span></div>
-    </div>
     <p class="matchup">vs <strong>{r['pitcher']}</strong> · {r['game_label']} · {r['time']}</p>
     {pitcher_note}
     <div class="reasons">
@@ -2049,101 +2048,17 @@ def generate_html(all_preds, games):
   </div>
 </div>"""
  
-    # ── Two top-picks tabs ────────────────────────────────────
-    # Tab 1: Highest Probability (sort by model_prob)
-    top_prob = [r for r in all_preds if r["model_prob"] is not None]
-    top_prob.sort(key=lambda r: r["model_prob"] or 0, reverse=True)
-    top_prob_html = "\n".join(player_card(r, i+1) for i, r in enumerate(top_prob[:10])) \
-                    if top_prob else '<p class="empty">No predictions yet.</p>'
- 
-    # Tab 2: Best Value — sorted by highest raw edge, filtered to +500-+1000 odds only.
-    # This excludes star players (short odds) and extreme longshots.
-    def value_score(r):
-        model_prob = r.get("model_prob") or 0
-        book_implied = r.get("book_implied") or 0
-        edge = r.get("edge") or -999
-        odds = r.get("book_odds") or 9999
-        contact = r.get("h_hr_contact_score") or 0
-        barrel = r.get("h_barrel_pct") or 0
-        hard_hit = r.get("h_hard_hit_pct") or 0
-        n_batted = r.get("h_n_batted") or 0
-        reasons_txt = " ".join(r.get("reasons", [])).lower()
+    # ── Ranked matchup list ──────────────────────────────────
+    def matchup_rank_score(r):
+        base = r.get("model_prob") or 0
+        edge = r.get("edge") or 0
+        platoon_bonus = 1.5 if r.get("platoon_favorable") else 0
+        return base + max(0, edge) * 0.25 + platoon_bonus
 
-        side_bonus = 0.0
-        if "favorable side" in reasons_txt or "pitcher is especially vulnerable to this side" in reasons_txt:
-            side_bonus += 1.0
-        elif "weaker side" in reasons_txt or r.get("platoon_mismatch"):
-            side_bonus -= 1.5
-
-        pitch_bonus = 0.0
-        if "crushes" in reasons_txt or "strong contact quality vs" in reasons_txt:
-            pitch_bonus += 0.8
-        elif "weaker-than-usual hr profile vs" in reasons_txt or "below average" in reasons_txt:
-            pitch_bonus -= 0.6
-
-        quality_bonus = 0.0
-        if contact >= 0.20:
-            quality_bonus += 1.1
-        elif contact >= 0.17:
-            quality_bonus += 0.6
-        if barrel >= 0.09:
-            quality_bonus += 0.7
-        elif barrel >= 0.07:
-            quality_bonus += 0.3
-        if hard_hit >= 0.36:
-            quality_bonus += 0.5
-
-        sample_bonus = 0.0
-        if n_batted >= 300:
-            sample_bonus += 0.35
-        elif n_batted >= 180:
-            sample_bonus += 0.15
-
-        # Stars with very short odds should not automatically dominate value.
-        star_penalty = 0.0
-        if odds <= 260 and model_prob >= 17:
-            star_penalty -= 1.4
-        elif odds <= 320 and model_prob >= 15:
-            star_penalty -= 0.8
-
-        # Give a boost to mid-tier plus-money plays where the relative mispricing matters.
-        tier_bonus = 0.0
-        if 330 <= odds <= 700:
-            tier_bonus += 0.9
-        elif 701 <= odds <= 900:
-            tier_bonus += 0.45
-
-        rel_edge = edge / max(book_implied, 1)
-        return (
-            rel_edge * 4.5
-            + edge * 0.40
-            + quality_bonus
-            + side_bonus
-            + pitch_bonus
-            + sample_bonus
-            + tier_bonus
-            + star_penalty
-        )
-
-    # Filter to +500–+1000 range only, require a real edge, sort by raw edge descending
-    top_edge = [
-        r for r in all_preds
-        if r["edge"] is not None and r["edge"] > 0
-        and r["book_implied"] is not None and r["book_implied"] > 0
-        and r["book_odds"] is not None and 500 <= r["book_odds"] <= 1000
-    ]
-    top_edge.sort(key=lambda r: r["edge"] or 0, reverse=True)
-
-    top_edge_html = "\n".join(player_card(r, i+1) for i, r in enumerate(top_edge[:10])) \
-                    if top_edge else '<p class="empty">No value picks with odds posted yet.</p>'
- 
-    top_picks_tabs = f"""
-  <div class="tab-bar top-tab-bar">
-    <button class="top-tab-btn active" onclick="showTopTab('prob')">🎯 Highest Probability</button>
-    <button class="top-tab-btn" onclick="showTopTab('edge')">💰 Best Value / Edge <span class="tab-hint">(quality-screened · platoon + pitcher-side + pitch mix)</span></button>
-  </div>
-  <div id="tab-prob" class="top-tab-panel active">{top_prob_html}</div>
-  <div id="tab-edge" class="top-tab-panel">{top_edge_html}</div>"""
+    ranked = [r for r in all_preds if r.get("model_prob") is not None]
+    ranked.sort(key=matchup_rank_score, reverse=True)
+    ranked_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(ranked[:20])) \
+        if ranked else '<p class="empty">No matchups scored yet.</p>'
  
     # ── Helper: pitcher stat box ───────────────────────────────
     def pitcher_box(pname, hand, team_color="rhp"):
@@ -2179,7 +2094,6 @@ def generate_html(all_preds, games):
             if r["model_prob"] is None:
                 continue
             prob  = r["model_prob"]
-            pcolor = "#e74c3c" if prob >= 15 else "#e67e22" if prob >= 10 else "#58a6ff"
             odds_str = (f'+{r["book_odds"]}' if r["book_odds"] and r["book_odds"] > 0
                         else str(r["book_odds"]) if r["book_odds"] else "—")
             edge_str  = f'+{r["edge"]:.1f}%' if r["edge"] and r["edge"] > 0 else (f'{r["edge"]:.1f}%' if r["edge"] else "—")
@@ -2210,7 +2124,7 @@ def generate_html(all_preds, games):
  
             rows += f"""<tr class="ln-row">
   <td class="ln-name">{r['player']}</td>
-  <td class="ln-prob" style="color:{pcolor}">{prob:.1f}%</td>
+  <td class="ln-stars">{stars_html(prob)}</td>
   <td class="ln-odds">{odds_str}</td>
   <td class="{edge_cls}">{edge_str}</td>
   {stat_cells}
@@ -2218,7 +2132,7 @@ def generate_html(all_preds, games):
 </tr>"""
         return f"""<table class="lineup-tbl">
 <thead><tr>
-  <th>Player</th><th>Prob</th><th>Book Odds</th><th>Edge</th>
+  <th>Player</th><th>Match</th><th>Book Odds</th><th>Edge</th>
   <th>Barrel%</th><th>Exit Velo</th><th>Hard Hit%</th><th>Top Factor</th>
 </tr></thead>
 <tbody>{rows}</tbody>
@@ -2330,11 +2244,6 @@ def generate_html(all_preds, games):
   .edge-neg{{color:var(--red) !important;font-weight:700}}
   .no-odds{{color:var(--muted);font-size:12px}}
  
-  /* ── Prob bar ── */
-  .prob-wrap{{display:flex;align-items:center;gap:8px}}
-  .prob-bar{{height:4px;border-radius:2px;min-width:4px;max-width:100px;opacity:.85}}
-  .prob-label{{font-size:17px;font-weight:900;letter-spacing:-.4px;color:var(--text)}}
- 
   /* ── Badges ── */
   .badge{{border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;letter-spacing:.02em}}
   .badge.red{{background:rgba(240,79,88,.12);color:var(--red)}}
@@ -2342,7 +2251,18 @@ def generate_html(all_preds, games):
   .badge.yellow{{background:rgba(245,158,11,.12);color:var(--amber)}}
   .badge.grey{{background:rgba(90,90,110,.15);color:var(--soft)}}
   .badge.dark{{background:rgba(240,79,88,.12);color:var(--red)}}
- 
+
+  /* ── Stars ── */
+  .stars-wrap {{ font-size:18px; letter-spacing:1px; font-weight:700; white-space:nowrap; }}
+  .stars-wrap.s5 {{ color:#f0b429; }}
+  .stars-wrap.s4 {{ color:#21c45d; }}
+  .stars-wrap.s3 {{ color:#4f86f7; }}
+  .stars-wrap.s2 {{ color:#8a8a9e; }}
+  .stars-wrap.s1 {{ color:#3a3a44; }}
+  .stars-wrap.muted {{ color:#3a3a44; }}
+  .header-spacer {{ flex:1; }}
+  .ln-stars {{ font-size:14px; letter-spacing:1px; white-space:nowrap; }}
+
   /* ── Game tabs ── */
   .tab-bar{{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0}}
   .tab-btn{{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:8px 12px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;line-height:1.4;transition:color .15s,border-color .15s;margin-bottom:-1px;font-family:inherit}}
@@ -2350,14 +2270,7 @@ def generate_html(all_preds, games):
   .tab-btn:hover:not(.active){{color:var(--soft)}}
   .tab-panel{{display:none}}.tab-panel.active{{display:block}}
  
-  /* ── Top picks tabs ── */
-  .top-tab-bar{{display:flex;gap:4px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;width:fit-content}}
-  .top-tab-btn{{background:transparent;border:none;color:var(--muted);padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:all .12s;font-family:inherit}}
-  .top-tab-btn.active{{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.4)}}
-  .top-tab-btn:hover:not(.active){{color:var(--soft)}}
-  .tab-hint{{font-size:11px;color:var(--soft);font-weight:600}}
-  .top-tab-panel{{display:none}}.top-tab-panel.active{{display:block}}
-  .tracker-section{{margin-top:32px}}
+.tracker-section{{margin-top:32px}}
   .tracker-strip{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:14px}}
   .track-card{{background:linear-gradient(180deg,rgba(79,134,247,.08),rgba(255,255,255,.02));border:1px solid var(--border);border-radius:12px;padding:14px 16px}}
   .track-title{{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin-bottom:8px}}
@@ -2400,8 +2313,7 @@ def generate_html(all_preds, games):
   .lineup-tbl th:nth-child(7), .lineup-tbl td:nth-child(7){{width:11%}}
   .lineup-tbl th:nth-child(8), .lineup-tbl td:nth-child(8){{width:22%}}
   .ln-name{{font-weight:800;white-space:nowrap;font-size:14px;color:var(--text);letter-spacing:-.2px}}
-  .ln-prob{{font-weight:900;font-size:15px;white-space:nowrap;letter-spacing:-.4px}}
-  .lineup-tbl th:nth-child(1){{padding-right:24px}}
+.lineup-tbl th:nth-child(1){{padding-right:24px}}
   .lineup-tbl td:nth-child(1){{padding-right:24px}}
   .lineup-tbl th:nth-child(2){{padding-left:20px}}
   .lineup-tbl td:nth-child(2){{padding-left:20px}}
@@ -2423,7 +2335,7 @@ def generate_html(all_preds, games):
   .empty{{color:var(--muted);padding:20px 0;text-align:center;font-size:13px}}
   .footer{{text-align:center;color:var(--muted);font-size:11px;padding:24px 20px;border-top:1px solid var(--border);margin-top:40px;letter-spacing:.03em}}
   @media(max-width:1100px){{.container{{padding:20px 16px}}.matchup-grid{{grid-template-columns:1fr}}.vs-divider{{display:none}}}}
-  @media(max-width:700px){{.stats-row{{gap:16px}}.card-header{{flex-direction:column;align-items:flex-start}}.top-tab-bar{{width:100%}}.lineup-tbl{{font-size:11px;min-width:760px}}.lineup-tbl thead th{{padding:8px 10px}}.ln-row td{{padding:10px 10px}}}}
+  @media(max-width:700px){{.stats-row{{gap:16px}}.card-header{{flex-direction:column;align-items:flex-start}}.lineup-tbl{{font-size:11px;min-width:760px}}.lineup-tbl thead th{{padding:8px 10px}}.ln-row td{{padding:10px 10px}}}}
 </style>
 </head>
 <body>
@@ -2431,32 +2343,26 @@ def generate_html(all_preds, games):
   <div class="brand-kicker">Weight Room Hero Sim</div>
   <div class="date">Weight Room Hero Sim</div>
   <div class="games-date">{date_big}</div>
-  <div class="subtitle">MLB Home Run Model &nbsp;·&nbsp; Updated {updated}</div>
+  <div class="subtitle">MLB HR Matchup Finder &nbsp;·&nbsp; Updated {updated}</div>
   <div class="header-links">
     <a class="header-link" href="https://www.linkedin.com/in/justinloo12/" target="_blank" rel="noopener noreferrer">LinkedIn · @justinloo12</a>
     <a class="header-link" href="https://www.instagram.com/justinloo12/" target="_blank" rel="noopener noreferrer">Instagram · @justinloo12</a>
   </div>
 </div>
 <div class="container">
-  <h2>🏆 Top Picks Today</h2>
-  {top_picks_tabs}
+  <h2>🎯 Today\'s Best Matchups</h2>
+  {ranked_html}
   <h2>📅 Today's Games</h2>
   {'<p class="empty">No games scheduled today.</p>' if not games else ''}
   <div class="tab-bar">{tab_buttons}</div>
   {tab_panels}
   {tracker_summary}
 </div>
-<div class="footer">Built with Statcast data · Probabilities based on standard deviations from MLB average · For entertainment only</div>
+<div class="footer">Built with Statcast data · Matchup ratings based on Statcast quality metrics — not outcome predictions · For entertainment only</div>
 <script>
 function showTab(id) {{
   document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
-  document.getElementById("tab-" + id).classList.add("active");
-  event.currentTarget.classList.add("active");
-}}
-function showTopTab(id) {{
-  document.querySelectorAll(".top-tab-panel").forEach(el => el.classList.remove("active"));
-  document.querySelectorAll(".top-tab-btn").forEach(el => el.classList.remove("active"));
   document.getElementById("tab-" + id).classList.add("active");
   event.currentTarget.classList.add("active");
 }}
