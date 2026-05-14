@@ -1976,7 +1976,9 @@ def generate_html(all_preds, games):
         elif p >= 10: n, cls = 3, "s3"
         elif p >= 7:  n, cls = 2, "s2"
         else:         n, cls = 1, "s1"
-        return f'<span class="stars-wrap {cls}">{"★" * n}{"☆" * (5 - n)}</span>'
+        filled = '<span class="star-on">★</span>' * n
+        empty  = '<span class="star-off">★</span>' * (5 - n)
+        return f'<span class="stars-wrap {cls}">{filled}{empty}</span>'
  
     def player_card(r, rank=None):
         rank_html = f'<span class="rank">#{rank}</span>' if rank else ""
@@ -2253,15 +2255,18 @@ def generate_html(all_preds, games):
   .badge.dark{{background:rgba(240,79,88,.12);color:var(--red)}}
 
   /* ── Stars ── */
-  .stars-wrap {{ font-size:18px; letter-spacing:1px; font-weight:700; white-space:nowrap; }}
-  .stars-wrap.s5 {{ color:#f0b429; }}
-  .stars-wrap.s4 {{ color:#21c45d; }}
-  .stars-wrap.s3 {{ color:#4f86f7; }}
-  .stars-wrap.s2 {{ color:#8a8a9e; }}
-  .stars-wrap.s1 {{ color:#3a3a44; }}
+  .stars-wrap {{ display:inline-flex; gap:3px; align-items:center; white-space:nowrap; }}
+  .star-on {{ font-size:16px; line-height:1; }}
+  .star-off {{ font-size:16px; line-height:1; opacity:0.15; color:#8a8a9e !important; }}
+  .stars-wrap.s5 .star-on {{ color:#f0b429; }}
+  .stars-wrap.s4 .star-on {{ color:#21c45d; }}
+  .stars-wrap.s3 .star-on {{ color:#4f86f7; }}
+  .stars-wrap.s2 .star-on {{ color:#8a8a9e; }}
+  .stars-wrap.s1 .star-on {{ color:#3a3a44; }}
   .stars-wrap.muted {{ color:#3a3a44; }}
   .header-spacer {{ flex:1; }}
-  .ln-stars {{ font-size:14px; letter-spacing:1px; white-space:nowrap; }}
+  .ln-stars {{ white-space:nowrap; }}
+  .ln-stars .star-on, .ln-stars .star-off {{ font-size:14px; }}
 
   /* ── Game tabs ── */
   .tab-bar{{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0}}
