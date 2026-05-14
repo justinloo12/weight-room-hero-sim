@@ -1,4 +1,5 @@
 import math
+import os
 import pickle
 import unicodedata
 import csv
@@ -15,8 +16,8 @@ try:
 except ImportError:
     HAS_SCIPY = False
     def scipy_expit(x): return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
- 
-ODDS_API_KEY = "3f2e2d867484541b580084248cdb1d1c"
+
+ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "3f2e2d867484541b580084248cdb1d1c")
  
 print("Loading profiles...")
 hitter  = pd.read_csv("hitter_profiles.csv")
@@ -1199,7 +1200,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
             + side_pitcher_hr * 0.15
             + LEAGUE_AB_RATE * 0.05
         ) * power_mult * blended_mult
-        heuristic_ab = max(0.006, min(0.13, heuristic_ab))
+        heuristic_ab = max(0.006, min(0.09, heuristic_ab))
 
         # Blend the model with the baseball prior. Established hitters get more
         # weight on the prior so stars don't collapse to the floor from an
@@ -1266,32 +1267,28 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         # Keep the ML model for ranking, but use a baseball-calibrated display
         # curve so obvious sluggers do not look absurdly underpriced.
         n_pa = 3.9
-        prob_raw_clamped = max(0.001, min(0.18, prob_raw))
-        heuristic_clamped = max(0.004, min(0.17, heuristic_ab))
+        prob_raw_clamped = max(0.001, min(0.12, prob_raw))
+        heuristic_clamped = max(0.004, min(0.09, heuristic_ab))
 
-        # Weight the custom baseball prior more heavily than the raw calibrated
-        # model because the latter is still too conservative for HR pricing.
-        display_ab = 0.30 * prob_raw_clamped + 0.70 * heuristic_clamped
+        # Blend ML model with baseball prior. z-score signal is already baked
+        # into prob_raw so we do not apply it again here.
+        display_ab = 0.45 * prob_raw_clamped + 0.55 * heuristic_clamped
 
-        # Convert the top hitter/pitcher z-signal into a modest pricing bump.
-        score_signal = max(-1.4, min(1.8, combined_z))
-        display_ab *= math.exp(score_signal * 0.16)
-
-        # Extra lift for truly elite sluggers with real samples.
+        # Modest extra lift for elite/upper-tier sluggers.
         if elite_power:
-            display_ab *= 1.14
+            display_ab *= 1.07
         elif upper_tier_power:
-            display_ab *= 1.08
+            display_ab *= 1.04
 
         # Preserve the fringe-bat caps but keep a stronger floor for real sluggers.
         if elite_power or upper_tier_power:
             display_ab = max(display_ab, heuristic_clamped * (0.92 if upper_tier_power else 0.98))
 
-        display_ab = max(0.006, min(0.17, display_ab))
+        display_ab = max(0.006, min(0.13, display_ab))
         prob = (1.0 - (1.0 - display_ab) ** n_pa) * 100
-        if prob > 30.0:
-            prob = 30.0 + (prob - 30.0) * 0.60
-        prob = max(3.0, min(42.0, prob))
+        if prob > 22.0:
+            prob = 22.0 + (prob - 22.0) * 0.50
+        prob = max(3.0, min(30.0, prob))
  
     else:
         # --- Z-score fallback (no trained model) ---

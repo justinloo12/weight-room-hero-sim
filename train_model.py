@@ -162,7 +162,7 @@ try:
     scaler = pipeline.named_steps["scaler"]
     calibrated = pipeline.named_steps["model"]
     importances = np.mean([
-        est.base_estimator.feature_importances_
+        (est.estimator if hasattr(est, "estimator") else est.base_estimator).feature_importances_
         for est in calibrated.calibrated_classifiers_
     ], axis=0)
     imp_series = pd.Series(importances, index=features).sort_values(ascending=False)
