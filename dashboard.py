@@ -2065,11 +2065,18 @@ def generate_html(all_preds, games):
         if top_prob else '<p class="empty">No predictions yet.</p>'
 
     # ── Top Edge — biggest gap between model probability and book implied %
+    # Requires established MLB track record: 200+ batted balls, real barrel/hard-hit numbers
+    MIN_BATTED   = 200
+    MIN_BARREL   = 0.05   # 5% barrel rate — filters out pure contact hitters
+    MIN_HARD_HIT = 0.30   # 30% hard-hit rate
     top_edge = [
         r for r in all_preds
         if r.get("edge") is not None and r["edge"] > 0
         and r.get("book_implied") is not None and r["book_implied"] > 0
         and r.get("model_prob") is not None
+        and (r.get("h_n_batted") or 0) >= MIN_BATTED
+        and (r.get("h_barrel_pct") or 0) >= MIN_BARREL
+        and (r.get("h_hard_hit_pct") or 0) >= MIN_HARD_HIT
     ]
     top_edge.sort(key=lambda r: r["edge"] or 0, reverse=True)
     top_edge_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_edge[:10])) \
