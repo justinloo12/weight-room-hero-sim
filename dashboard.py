@@ -1115,7 +1115,7 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         h_top_ml   = sorted(h_zs_ml, reverse=True)[:5]
         h_score_ml = float(np.mean(h_top_ml)) if h_top_ml else 0.0
         p_score_ml = float(np.mean(p_zs_ml))  if p_zs_ml  else 0.0
-        combined_z = h_score_ml * 0.70 + p_score_ml * 0.30 + wx_adj
+        combined_z = h_score_ml * 0.50 + p_score_ml * 0.50 + wx_adj
         combined_z = max(-1.6, min(1.6, combined_z))   # more conservative boost/suppression
         prob_raw   = prob_raw * math.exp(combined_z * 0.20)
  
@@ -1133,8 +1133,6 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
             starter_mult = 0.95  # unknown starter: slight penalty
 
         bullpen_mult = _bullpen_multiplier(opp_team or home_team)
-        blended_mult = 0.70 * starter_mult + 0.30 * bullpen_mult
-        prob_raw    *= blended_mult
 
         # ── Blend ML output with a baseball-calibrated heuristic ──────
         # The ML ranking is useful, but calibrated raw HR probabilities can get
@@ -1194,12 +1192,21 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         if pitch_hr_matchup is not None and pitch_hr_matchup >= 0.010: power_mult += 0.05
         if pitch_contact_matchup is not None and pitch_contact_matchup >= 0.090: power_mult += 0.04
 
+        # 40% hitter: batter HR ability (overall + platoon blend) scaled by contact quality
+        batter_component = (base_rate * 0.60 + matched_shrunk * 0.40) * power_mult
+
+        # 40% pitcher: side-specific HR rate allowed, scaled by starter tier
+        pitcher_component = side_pitcher_hr * starter_mult
+
+        # 20% context: league baseline adjusted for ballpark, weather, and bullpen
+        ballpark_factor = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+        context_component = LEAGUE_AB_RATE * bullpen_mult * ballpark_factor
+
         heuristic_ab = (
-            base_rate * 0.55
-            + matched_shrunk * 0.25
-            + side_pitcher_hr * 0.15
-            + LEAGUE_AB_RATE * 0.05
-        ) * power_mult * blended_mult
+            batter_component  * 0.40
+            + pitcher_component * 0.40
+            + context_component * 0.20
+        )
         heuristic_ab = max(0.006, min(0.09, heuristic_ab))
 
         # Blend the model with the baseball prior. Established hitters get more
@@ -1976,7 +1983,9 @@ def generate_html(all_preds, games):
         elif p >= 10: n, cls = 3, "s3"
         elif p >= 7:  n, cls = 2, "s2"
         else:         n, cls = 1, "s1"
-        return f'<span class="stars-wrap {cls}">{"★" * n}{"☆" * (5 - n)}</span>'
+        filled = '<span class="star-on">★</span>' * n
+        empty  = '<span class="star-off">★</span>' * (5 - n)
+        return f'<span class="stars-wrap {cls}">{filled}{empty}</span>'
  
     def player_card(r, rank=None):
         rank_html = f'<span class="rank">#{rank}</span>' if rank else ""
@@ -2049,16 +2058,30 @@ def generate_html(all_preds, games):
 </div>"""
  
     # ── Ranked matchup list ──────────────────────────────────
-    def matchup_rank_score(r):
-        base = r.get("model_prob") or 0
-        edge = r.get("edge") or 0
-        platoon_bonus = 1.5 if r.get("platoon_favorable") else 0
-        return base + max(0, edge) * 0.25 + platoon_bonus
+    # ── Top Probability — best matchup quality regardless of odds ─
+    top_prob = [r for r in all_preds if r.get("model_prob") is not None]
+    top_prob.sort(key=lambda r: r["model_prob"] or 0, reverse=True)
+    top_prob_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_prob[:10])) \
+        if top_prob else '<p class="empty">No predictions yet.</p>'
 
-    ranked = [r for r in all_preds if r.get("model_prob") is not None]
-    ranked.sort(key=matchup_rank_score, reverse=True)
-    ranked_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(ranked[:20])) \
-        if ranked else '<p class="empty">No matchups scored yet.</p>'
+    # ── Top Edge — biggest gap between model probability and book implied %
+    top_edge = [
+        r for r in all_preds
+        if r.get("edge") is not None and r["edge"] > 0
+        and r.get("book_implied") is not None and r["book_implied"] > 0
+        and r.get("model_prob") is not None
+    ]
+    top_edge.sort(key=lambda r: r["edge"] or 0, reverse=True)
+    top_edge_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_edge[:10])) \
+        if top_edge else '<p class="empty">No value picks with odds posted yet.</p>'
+
+    picks_tabs = f"""
+  <div class="picks-tab-bar">
+    <button class="picks-tab-btn active" onclick="showPicksTab('prob', this)">🎯 Top Probability</button>
+    <button class="picks-tab-btn" onclick="showPicksTab('edge', this)">💰 Top Edge</button>
+  </div>
+  <div id="picks-prob" class="picks-tab-panel active">{top_prob_html}</div>
+  <div id="picks-edge" class="picks-tab-panel">{top_edge_html}</div>"""
  
     # ── Helper: pitcher stat box ───────────────────────────────
     def pitcher_box(pname, hand, team_color="rhp"):
@@ -2253,15 +2276,18 @@ def generate_html(all_preds, games):
   .badge.dark{{background:rgba(240,79,88,.12);color:var(--red)}}
 
   /* ── Stars ── */
-  .stars-wrap {{ font-size:18px; letter-spacing:1px; font-weight:700; white-space:nowrap; }}
-  .stars-wrap.s5 {{ color:#f0b429; }}
-  .stars-wrap.s4 {{ color:#21c45d; }}
-  .stars-wrap.s3 {{ color:#4f86f7; }}
-  .stars-wrap.s2 {{ color:#8a8a9e; }}
-  .stars-wrap.s1 {{ color:#3a3a44; }}
+  .stars-wrap {{ display:inline-flex; gap:3px; align-items:center; white-space:nowrap; }}
+  .star-on {{ font-size:16px; line-height:1; }}
+  .star-off {{ font-size:16px; line-height:1; opacity:0.15; color:#8a8a9e !important; }}
+  .stars-wrap.s5 .star-on {{ color:#f0b429; }}
+  .stars-wrap.s4 .star-on {{ color:#21c45d; }}
+  .stars-wrap.s3 .star-on {{ color:#4f86f7; }}
+  .stars-wrap.s2 .star-on {{ color:#8a8a9e; }}
+  .stars-wrap.s1 .star-on {{ color:#3a3a44; }}
   .stars-wrap.muted {{ color:#3a3a44; }}
   .header-spacer {{ flex:1; }}
-  .ln-stars {{ font-size:14px; letter-spacing:1px; white-space:nowrap; }}
+  .ln-stars {{ white-space:nowrap; }}
+  .ln-stars .star-on, .ln-stars .star-off {{ font-size:14px; }}
 
   /* ── Game tabs ── */
   .tab-bar{{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0}}
@@ -2333,6 +2359,12 @@ def generate_html(all_preds, games):
   .lineup-tbl tbody td:nth-child(5), .lineup-tbl tbody td:nth-child(6), .lineup-tbl tbody td:nth-child(7){{text-align:center}}
   .no-data{{color:var(--muted);font-style:italic;font-size:12px}}
   .empty{{color:var(--muted);padding:20px 0;text-align:center;font-size:13px}}
+  /* ── Picks tabs ── */
+  .picks-tab-bar{{display:flex;gap:4px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;width:fit-content}}
+  .picks-tab-btn{{background:transparent;border:none;color:var(--muted);padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:all .12s;font-family:inherit;letter-spacing:.01em}}
+  .picks-tab-btn.active{{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.4)}}
+  .picks-tab-btn:hover:not(.active){{color:var(--soft)}}
+  .picks-tab-panel{{display:none}}.picks-tab-panel.active{{display:block}}
   .footer{{text-align:center;color:var(--muted);font-size:11px;padding:24px 20px;border-top:1px solid var(--border);margin-top:40px;letter-spacing:.03em}}
   @media(max-width:1100px){{.container{{padding:20px 16px}}.matchup-grid{{grid-template-columns:1fr}}.vs-divider{{display:none}}}}
   @media(max-width:700px){{.stats-row{{gap:16px}}.card-header{{flex-direction:column;align-items:flex-start}}.lineup-tbl{{font-size:11px;min-width:760px}}.lineup-tbl thead th{{padding:8px 10px}}.ln-row td{{padding:10px 10px}}}}
@@ -2350,8 +2382,8 @@ def generate_html(all_preds, games):
   </div>
 </div>
 <div class="container">
-  <h2>🎯 Today\'s Best Matchups</h2>
-  {ranked_html}
+  <h2>Today\'s Picks</h2>
+  {picks_tabs}
   <h2>📅 Today's Games</h2>
   {'<p class="empty">No games scheduled today.</p>' if not games else ''}
   <div class="tab-bar">{tab_buttons}</div>
@@ -2360,6 +2392,12 @@ def generate_html(all_preds, games):
 </div>
 <div class="footer">Built with Statcast data · Matchup ratings based on Statcast quality metrics — not outcome predictions · For entertainment only</div>
 <script>
+function showPicksTab(id, btn) {{
+  document.querySelectorAll(".picks-tab-panel").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".picks-tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("picks-" + id).classList.add("active");
+  btn.classList.add("active");
+}}
 function showTab(id) {{
   document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
