@@ -478,21 +478,39 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-04-25,highest_probability_top10,8,Nick Kurtz,701762,ATH,ATH@TEX,MacKenzie Gore,William Hill,475,25.54,17.39,8.15,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
 2026-04-25,highest_probability_top10,9,Sal Stewart,701398,CIN,DET@CIN,Jack Flaherty,William Hill,290,25.35,25.64,-0.29,100.00,HR,290.00,,,,,,,,,,,,,,,,,,2026-04-25 07:48 PM ET
 2026-04-25,highest_probability_top10,10,Colson Montgomery,695657,CWS,WSH@CWS,Jake Irvin,William Hill,320,24.49,23.81,0.68,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
-2026-05-14,best_value_top10,1,Drew Romo,691011,CWS,KC@CWS,Kris Bubic,ESPN BET,900,17.09,10.00,7.09,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,best_value_top10,2,Gage Workman,669398,DET,DET@NYM,Nolan McLean,ESPN BET,900,16.39,10.00,6.39,100.00,,,,,,,,,,,,,,,,,,,,2026-05-14 01:52 PM ET
-2026-05-14,best_value_top10,3,Braden Shewmake,669699,HOU,SEA@HOU,Luis Castillo,ESPN BET,700,18.79,12.50,6.29,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,best_value_top10,4,Sal Stewart,701398,CIN,WSH@CIN,Foster Griffin,ESPN BET,500,23.11,16.67,6.44,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,best_value_top10,5,Jesus Rodriguez,683679,SF,SF@LAD,Emmet Sheehan,ESPN BET,1100,11.33,8.33,3.00,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,best_value_top10,6,James Wood,695578,WSH,WSH@CIN,Chase Burns,ESPN BET,500,21.11,16.67,4.44,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,best_value_top10,7,Kyle Schwarber,656941,PHI,PHI@BOS,Ranger Suarez,ESPN BET,375,23.50,21.05,2.45,100.00,,,,,,,,,,,,,,,,,,,,2026-05-14 09:23 PM ET
-2026-05-14,best_value_top10,8,Munetaka Murakami,808959,CWS,KC@CWS,Kris Bubic,ESPN BET,375,23.33,21.05,2.28,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,1,Juan Soto,665742,NYM,DET@NYM,Keider Montero,ESPN BET,300,23.95,25.00,-1.05,100.00,,,,,,,,,,,,,,,,,,,,2026-05-14 03:48 PM ET
-2026-05-14,highest_probability_top10,2,Kyle Schwarber,656941,PHI,PHI@BOS,Ranger Suarez,ESPN BET,375,23.50,21.05,2.45,100.00,,,,,,,,,,,,,,,,,,,,2026-05-14 09:23 PM ET
-2026-05-14,highest_probability_top10,3,Munetaka Murakami,808959,CWS,KC@CWS,Kris Bubic,ESPN BET,375,23.33,21.05,2.28,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,4,Sal Stewart,701398,CIN,WSH@CIN,Foster Griffin,ESPN BET,500,23.11,16.67,6.44,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,5,Nick Kurtz,701762,ATH,STL@ATH,Michael McGreevy,ESPN BET,250,22.39,28.57,-6.18,100.00,,,,,,,,,,,,,,,,,,,,2026-05-14 03:48 PM ET
-2026-05-14,highest_probability_top10,6,James Wood,695578,WSH,WSH@CIN,Chase Burns,ESPN BET,500,21.11,16.67,4.44,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,7,Zach Cole,805904,HOU,SEA@HOU,Luis Castillo,ESPN BET,450,19.11,18.18,0.93,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,8,Braden Shewmake,669699,HOU,SEA@HOU,Luis Castillo,ESPN BET,700,18.79,12.50,6.29,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,9,Oneil Cruz,665833,PIT,COL@PIT,Chase Dollander,Hard Rock Bet,425,17.90,19.05,-1.15,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-14,highest_probability_top10,10,Drew Romo,691011,CWS,KC@CWS,Kris Bubic,ESPN BET,900,17.09,10.00,7.09,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-14,best_value_top10,1,Drew Romo,691011,CWS,KC@CWS,Kris Bubic,ESPN BET,900,17.09,10.00,7.09,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,best_value_top10,2,Gage Workman,669398,DET,DET@NYM,Nolan McLean,ESPN BET,900,16.39,10.00,6.39,100.00,HR,900.00,,,,,,,,,,,,,,,,,,2026-05-14 01:52 PM ET
+2026-05-14,best_value_top10,3,Braden Shewmake,669699,HOU,SEA@HOU,Luis Castillo,ESPN BET,700,18.79,12.50,6.29,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,best_value_top10,4,Sal Stewart,701398,CIN,WSH@CIN,Foster Griffin,ESPN BET,500,23.11,16.67,6.44,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,best_value_top10,5,Jesus Rodriguez,683679,SF,SF@LAD,Emmet Sheehan,ESPN BET,1100,11.33,8.33,3.00,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,best_value_top10,6,James Wood,695578,WSH,WSH@CIN,Chase Burns,ESPN BET,500,21.11,16.67,4.44,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,best_value_top10,7,Kyle Schwarber,656941,PHI,PHI@BOS,Ranger Suarez,ESPN BET,375,23.50,21.05,2.45,100.00,HR,375.00,,,,,,,,,,,,,,,,,,2026-05-14 09:23 PM ET
+2026-05-14,best_value_top10,8,Munetaka Murakami,808959,CWS,KC@CWS,Kris Bubic,ESPN BET,375,23.33,21.05,2.28,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,1,Juan Soto,665742,NYM,DET@NYM,Keider Montero,ESPN BET,300,23.95,25.00,-1.05,100.00,HR,300.00,,,,,,,,,,,,,,,,,,2026-05-14 03:48 PM ET
+2026-05-14,highest_probability_top10,2,Kyle Schwarber,656941,PHI,PHI@BOS,Ranger Suarez,ESPN BET,375,23.50,21.05,2.45,100.00,HR,375.00,,,,,,,,,,,,,,,,,,2026-05-14 09:23 PM ET
+2026-05-14,highest_probability_top10,3,Munetaka Murakami,808959,CWS,KC@CWS,Kris Bubic,ESPN BET,375,23.33,21.05,2.28,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,4,Sal Stewart,701398,CIN,WSH@CIN,Foster Griffin,ESPN BET,500,23.11,16.67,6.44,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,5,Nick Kurtz,701762,ATH,STL@ATH,Michael McGreevy,ESPN BET,250,22.39,28.57,-6.18,100.00,HR,250.00,,,,,,,,,,,,,,,,,,2026-05-14 03:48 PM ET
+2026-05-14,highest_probability_top10,6,James Wood,695578,WSH,WSH@CIN,Chase Burns,ESPN BET,500,21.11,16.67,4.44,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,7,Zach Cole,805904,HOU,SEA@HOU,Luis Castillo,ESPN BET,450,19.11,18.18,0.93,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,8,Braden Shewmake,669699,HOU,SEA@HOU,Luis Castillo,ESPN BET,700,18.79,12.50,6.29,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,9,Oneil Cruz,665833,PIT,COL@PIT,Chase Dollander,Hard Rock Bet,425,17.90,19.05,-1.15,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-14,highest_probability_top10,10,Drew Romo,691011,CWS,KC@CWS,Kris Bubic,ESPN BET,900,17.09,10.00,7.09,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,1,Drew Romo,691011,CWS,CHC@CWS,Edward Cabrera,ESPN BET,900,19.96,10.00,9.96,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,2,Braden Shewmake,669699,HOU,TEX@HOU,Jack Leiter,ESPN BET,700,21.05,12.50,8.55,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,3,Esteury Ruiz,665923,MIA,MIA@TB,Jesse Scholtens,ESPN BET,900,14.09,10.00,4.09,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,4,Sandy León,506702,ATL,BOS@ATL,Connelly Early,hardrockbet_oh,1100,11.60,8.33,3.27,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,5,Gage Workman,669398,DET,TOR@DET,Trey Yesavage,ESPN BET,800,15.29,11.11,4.18,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,6,Jesus Rodriguez,683679,SF,SF@ATH,Aaron Civale,ESPN BET,1000,11.94,9.09,2.85,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,7,Zach Cole,805904,HOU,TEX@HOU,Jack Leiter,ESPN BET,450,21.44,18.18,3.26,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,best_value_top10,8,Brice Matthews,694728,HOU,TEX@HOU,Jack Leiter,ESPN BET,550,17.93,15.38,2.55,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,1,Shohei Ohtani,660271,LAD,LAD@LAA,Jack Kochanowicz,betPARX,270,25.87,27.03,-1.16,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,2,Munetaka Murakami,808959,CWS,CHC@CWS,Edward Cabrera,ESPN BET,300,24.34,25.00,-0.66,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,3,Kyle Schwarber,656941,PHI,PHI@PIT,Braxton Ashcraft,ESPN BET,300,22.32,25.00,-2.68,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,4,Aaron Judge,592450,NYY,NYY@NYM,Clay Holmes,ESPN BET,300,22.32,25.00,-2.68,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,5,Zach Cole,805904,HOU,TEX@HOU,Jack Leiter,ESPN BET,450,21.44,18.18,3.26,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,6,Braden Shewmake,669699,HOU,TEX@HOU,Jack Leiter,ESPN BET,700,21.05,12.50,8.55,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,7,Drew Romo,691011,CWS,CHC@CWS,Edward Cabrera,ESPN BET,900,19.96,10.00,9.96,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,8,Juan Soto,665742,NYM,NYY@NYM,Cam Schlittler,ESPN BET,450,18.76,18.18,0.58,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,9,Pete Alonso,624413,BAL,BAL@WSH,Zack Littell,ESPN BET,325,18.49,23.53,-5.04,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-15,highest_probability_top10,10,James Wood,695578,WSH,BAL@WSH,Shane Baz,ESPN BET,300,18.39,25.00,-6.61,100.00,,,,,,,,,,,,,,,,,,,,
