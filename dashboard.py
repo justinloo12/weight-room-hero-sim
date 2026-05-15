@@ -2058,16 +2058,30 @@ def generate_html(all_preds, games):
 </div>"""
  
     # ── Ranked matchup list ──────────────────────────────────
-    def matchup_rank_score(r):
-        base = r.get("model_prob") or 0
-        edge = r.get("edge") or 0
-        platoon_bonus = 1.5 if r.get("platoon_favorable") else 0
-        return base + max(0, edge) * 0.25 + platoon_bonus
+    # ── Top Probability — best matchup quality regardless of odds ─
+    top_prob = [r for r in all_preds if r.get("model_prob") is not None]
+    top_prob.sort(key=lambda r: r["model_prob"] or 0, reverse=True)
+    top_prob_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_prob[:10])) \
+        if top_prob else '<p class="empty">No predictions yet.</p>'
 
-    ranked = [r for r in all_preds if r.get("model_prob") is not None]
-    ranked.sort(key=matchup_rank_score, reverse=True)
-    ranked_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(ranked[:20])) \
-        if ranked else '<p class="empty">No matchups scored yet.</p>'
+    # ── Top Edge — biggest gap between model probability and book implied %
+    top_edge = [
+        r for r in all_preds
+        if r.get("edge") is not None and r["edge"] > 0
+        and r.get("book_implied") is not None and r["book_implied"] > 0
+        and r.get("model_prob") is not None
+    ]
+    top_edge.sort(key=lambda r: r["edge"] or 0, reverse=True)
+    top_edge_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_edge[:10])) \
+        if top_edge else '<p class="empty">No value picks with odds posted yet.</p>'
+
+    picks_tabs = f"""
+  <div class="picks-tab-bar">
+    <button class="picks-tab-btn active" onclick="showPicksTab('prob', this)">🎯 Top Probability</button>
+    <button class="picks-tab-btn" onclick="showPicksTab('edge', this)">💰 Top Edge</button>
+  </div>
+  <div id="picks-prob" class="picks-tab-panel active">{top_prob_html}</div>
+  <div id="picks-edge" class="picks-tab-panel">{top_edge_html}</div>"""
  
     # ── Helper: pitcher stat box ───────────────────────────────
     def pitcher_box(pname, hand, team_color="rhp"):
@@ -2345,6 +2359,12 @@ def generate_html(all_preds, games):
   .lineup-tbl tbody td:nth-child(5), .lineup-tbl tbody td:nth-child(6), .lineup-tbl tbody td:nth-child(7){{text-align:center}}
   .no-data{{color:var(--muted);font-style:italic;font-size:12px}}
   .empty{{color:var(--muted);padding:20px 0;text-align:center;font-size:13px}}
+  /* ── Picks tabs ── */
+  .picks-tab-bar{{display:flex;gap:4px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;width:fit-content}}
+  .picks-tab-btn{{background:transparent;border:none;color:var(--muted);padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:all .12s;font-family:inherit;letter-spacing:.01em}}
+  .picks-tab-btn.active{{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.4)}}
+  .picks-tab-btn:hover:not(.active){{color:var(--soft)}}
+  .picks-tab-panel{{display:none}}.picks-tab-panel.active{{display:block}}
   .footer{{text-align:center;color:var(--muted);font-size:11px;padding:24px 20px;border-top:1px solid var(--border);margin-top:40px;letter-spacing:.03em}}
   @media(max-width:1100px){{.container{{padding:20px 16px}}.matchup-grid{{grid-template-columns:1fr}}.vs-divider{{display:none}}}}
   @media(max-width:700px){{.stats-row{{gap:16px}}.card-header{{flex-direction:column;align-items:flex-start}}.lineup-tbl{{font-size:11px;min-width:760px}}.lineup-tbl thead th{{padding:8px 10px}}.ln-row td{{padding:10px 10px}}}}
@@ -2362,8 +2382,8 @@ def generate_html(all_preds, games):
   </div>
 </div>
 <div class="container">
-  <h2>🎯 Today\'s Best Matchups</h2>
-  {ranked_html}
+  <h2>Today\'s Picks</h2>
+  {picks_tabs}
   <h2>📅 Today's Games</h2>
   {'<p class="empty">No games scheduled today.</p>' if not games else ''}
   <div class="tab-bar">{tab_buttons}</div>
@@ -2372,6 +2392,12 @@ def generate_html(all_preds, games):
 </div>
 <div class="footer">Built with Statcast data · Matchup ratings based on Statcast quality metrics — not outcome predictions · For entertainment only</div>
 <script>
+function showPicksTab(id, btn) {{
+  document.querySelectorAll(".picks-tab-panel").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".picks-tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("picks-" + id).classList.add("active");
+  btn.classList.add("active");
+}}
 function showTab(id) {{
   document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
