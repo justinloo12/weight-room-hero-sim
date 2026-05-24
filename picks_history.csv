@@ -645,7 +645,7 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-05-24,best_value_top10,6,Brice Matthews,694728,HOU,HOU@CHC,Shota Imanaga,ESPN BET,700,15.28,12.50,2.78,100.00,,,,,,,,,,,,,,,,,,,,
 2026-05-24,highest_probability_top10,1,Shohei Ohtani,660271,LAD,LAD@MIL,Brandon Sproat,ESPN BET,275,20.57,26.67,-6.10,100.00,,,,,,,,,,,,,,,,,,,,
 2026-05-24,highest_probability_top10,2,Kyle Schwarber,656941,PHI,CLE@PHI,Parker Messick,ESPN BET,260,20.04,27.78,-7.74,100.00,,,,,,,,,,,,,,,,,,,,
-2026-05-24,highest_probability_top10,3,Aaron Judge,592450,NYY,TB@NYY,Drew Rasmussen,ESPN BET,275,18.81,26.67,-7.86,100.00,,,,,,,,,,,,,,,,,,,,
+2026-05-24,highest_probability_top10,3,Aaron Judge,592450,NYY,TB@NYY,Drew Rasmussen,ESPN BET,275,18.81,26.67,-7.86,100.00,,,,,,,,,,,,,,,,,,,,2026-05-24 04:36 PM ET
 2026-05-24,highest_probability_top10,4,Byron Buxton,621439,MIN,MIN@BOS,Sonny Gray,ESPN BET,475,17.63,17.39,0.24,100.00,,,,,,,,,,,,,,,,,,,,
 2026-05-24,highest_probability_top10,5,Dalton Rushing,687221,LAD,LAD@MIL,Brandon Sproat,ESPN BET,475,16.17,17.39,-1.22,100.00,,,,,,,,,,,,,,,,,,,,
 2026-05-24,highest_probability_top10,6,Brice Matthews,694728,HOU,HOU@CHC,Shota Imanaga,ESPN BET,600,15.28,14.29,0.99,100.00,,,,,,,,,,,,,,,,,,,,
