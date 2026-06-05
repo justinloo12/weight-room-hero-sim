@@ -1727,10 +1727,10 @@ def generate_html(all_preds, games):
  
     def stars_html(p):
         if p is None: return '<span class="stars-wrap muted">—</span>'
-        if p >= 18:   n, cls = 5, "s5"
-        elif p >= 14: n, cls = 4, "s4"
-        elif p >= 10: n, cls = 3, "s3"
-        elif p >= 7:  n, cls = 2, "s2"
+        if p >= 75:   n, cls = 5, "s5"
+        elif p >= 55: n, cls = 4, "s4"
+        elif p >= 38: n, cls = 3, "s3"
+        elif p >= 22: n, cls = 2, "s2"
         else:         n, cls = 1, "s1"
         filled = '<span class="star-on">★</span>' * n
         empty  = '<span class="star-off">★</span>' * (5 - n)
@@ -1771,7 +1771,7 @@ def generate_html(all_preds, games):
                 f'<span class="book-tag">{book_lbl}</span>'
                 f'&nbsp;<span class="odds-num">{odds_fmt(r["book_odds"])}</span>'
                 f'&nbsp;<span class="implied-num">({r["book_implied"]:.1f}% implied)</span>'
-                f'&nbsp;→&nbsp;<span class="model-num">Matchup: {stars_html(r["model_prob"])}</span>'
+                f'&nbsp;→&nbsp;<span class="model-num">Matchup: {stars_html(r.get("matchup_score"))}</span>'
                 f'&nbsp;→&nbsp;<span class="edge-num {"edge-pos" if (r["edge"] or 0) > 0 else "edge-neg"}">Edge: {edge_str}</span>'
                 f'</div>'
             )
@@ -1779,7 +1779,7 @@ def generate_html(all_preds, games):
             odds_source = (
                 f'<div class="odds-source">'
                 f'<span class="no-odds">No odds posted yet</span>'
-                f'&nbsp;·&nbsp;<span class="model-num">Matchup: {stars_html(r["model_prob"])}</span>'
+                f'&nbsp;·&nbsp;<span class="model-num">Matchup: {stars_html(r.get("matchup_score"))}</span>'
                 f'</div>'
             ) if r["model_prob"] else ''
 
@@ -1792,7 +1792,7 @@ def generate_html(all_preds, games):
     {ph_badge}
     {platoon_badge}
     <span class="header-spacer"></span>
-    {stars_html(r['model_prob'])}
+    {stars_html(r.get('matchup_score'))}
     {edge_badge(r['edge'])}
   </div>
   <div class="card-body">
@@ -1809,7 +1809,7 @@ def generate_html(all_preds, games):
     # ── Ranked matchup list ──────────────────────────────────
     # ── Top Probability — best matchup quality regardless of odds ─
     top_prob = [r for r in all_preds if r.get("model_prob") is not None]
-    top_prob.sort(key=lambda r: r["model_prob"] or 0, reverse=True)
+    top_prob.sort(key=lambda r: r.get("matchup_score") or 0, reverse=True)
     top_prob_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_prob[:10])) \
         if top_prob else '<p class="empty">No predictions yet.</p>'
 
@@ -1903,7 +1903,7 @@ def generate_html(all_preds, games):
  
             rows += f"""<tr class="ln-row">
   <td class="ln-name">{r['player']}</td>
-  <td class="ln-stars">{stars_html(prob)}</td>
+  <td class="ln-stars">{stars_html(r.get('matchup_score'))}</td>
   <td class="ln-odds">{odds_str}</td>
   <td class="{edge_cls}">{edge_str}</td>
   {stat_cells}

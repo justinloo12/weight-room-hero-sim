@@ -23,7 +23,7 @@ ET       = ZoneInfo("America/New_York")
 BET_SIZE = 100         # dollars per pick
 HISTORY  = pathlib.Path("picks_history.csv")
 MLB_GAME_LOG = "https://statsapi.mlb.com/api/v1/people/{batter_id}/stats?stats=gameLog&season={season}&gameType=R&language=en"
-RESULT_CHECK_CUTOFF = "2026-03-31"
+RESULT_CHECK_CUTOFF = "2026-06-01"
  
 # ── helpers ──────────────────────────────────────────────────────────────────
  
