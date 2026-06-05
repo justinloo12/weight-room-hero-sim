@@ -91,31 +91,7 @@ pitcher_pop = _pop_stats(pitcher, "p_")
 print(f"  Hitter features with stats:  {len(hitter_pop)}")
 print(f"  Pitcher features with stats: {len(pitcher_pop)}")
  
-# ── ML model loading ───────────────────────────────────────────
-# Load the trained pipeline (GradientBoosting + StandardScaler).
-# Falls back gracefully to z-score formula if model not found.
-pipeline    = None
-lr_model    = None
-lr_scaler   = None
-lr_features = None
-try:
-    with open("hr_model.pkl", "rb") as _f:
-        pipeline = pickle.load(_f)
-    _feat_df    = pd.read_csv("model_features.csv")
-    lr_features = _feat_df["feature"].tolist()
-    lr_scaler   = pipeline.named_steps["scaler"]
-    lr_model    = pipeline.named_steps["model"]
-    # Check how many features overlap with available profile columns
-    h_overlap = [f for f in lr_features if f in hitter.columns]
-    p_overlap = [f for f in lr_features if f in pitcher.columns]
-    print(f"  ML model loaded — {len(lr_features)} features "
-          f"({len([f for f in lr_features if f.startswith('h_')])} hitter, "
-          f"{len([f for f in lr_features if f.startswith('p_')])} pitcher)")
-    print(f"  Feature overlap: {len(h_overlap)} hitter cols, {len(p_overlap)} pitcher cols found in profiles")
-except FileNotFoundError:
-    print("  WARNING: hr_model.pkl not found — using z-score fallback. Run train_model.py first.")
-except Exception as _e:
-    print(f"  WARNING: Model load failed ({_e}) — using z-score fallback.")
+print("ML model disabled — using matchup index formula.")
  
 # ── Ballpark GPS coordinates ───────────────────────────────────
 ballpark_coords = {
@@ -1010,308 +986,79 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     if   wind >= 15: wx_adj += 0.18
     elif wind >= 10: wx_adj += 0.10
  
-    # ── Probability: ML model (preferred) or z-score fallback ─
-    if lr_model is not None and lr_features is not None and len(h_row) > 0:
-        # --- Build feature vector for ML model ---
-        feature_vals = {}
-        for feat in lr_features:
-            feature_vals[feat] = np.nan
- 
-        if len(h_row) > 0:
-            hr = h_row.iloc[0]
-            for feat in lr_features:
-                if feat in hitter.columns and feat.startswith("h_"):
-                    if _pitch_label_from_feat(feat):
-                        v = _shrunk_pitch_value(hr, feat)
-                    else:
-                        v = hr.get(feat)
-                    if v is not None and not (isinstance(v, float) and np.isnan(v)):
-                        feature_vals[feat] = float(v)
-                elif feat.startswith("h_"):
-                    derived = _derive_matchup_feature(feat, hr, pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-                    if derived is not None:
-                        feature_vals[feat] = derived
-            # Platoon-matched HR rate
-            if "platoon_matched_hr_rate" in lr_features:
-                feature_vals["platoon_matched_hr_rate"] = float(
-                    hr.get("h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp", np.nan)
-                )
+    # ── Matchup index formula (0–100) ─────────────────────────
+    def norm(val, lo, hi):
+        return min(100.0, max(0.0, (val - lo) / (hi - lo) * 100.0))
 
-        if pitcher_found:
-            pr = p_row.iloc[0]
-            for feat in lr_features:
-                if feat in pitcher.columns and feat.startswith("p_"):
-                    v = pr.get(feat)
-                    if v is not None and not (isinstance(v, float) and np.isnan(v)):
-                        feature_vals[feat] = float(v)
-                elif feat not in feature_vals or pd.isna(feature_vals[feat]):
-                    derived = _derive_matchup_feature(feat, hr, pr, batter_side_suffix, pitcher_hand)
-                    if derived is not None:
-                        feature_vals[feat] = derived
+    # ── Batter score ───────────────────────────────────────────
+    if len(h_row) > 0:
+        hr_prof = h_row.iloc[0]
+        n_batted = float(hr_prof.get("h_n_batted") or 50)
 
-        # Context features
-        feature_vals["batter_right"]      = batter_right
-        feature_vals["pitcher_right"]     = 1 if pitcher_hand == "R" else 0
-        feature_vals["is_coors"]          = 1 if home_team == "COL" else 0
-        feature_vals["ballpark_hr_factor"]= BALLPARK_HR_FACTORS.get(home_team, 1.0)
-        feature_vals["temp_f"]            = wx.get("temp_f", 72)
-        feature_vals["humidity"]          = wx.get("humidity", 50)
-        feature_vals["wind_speed"]        = wx.get("wind_speed", 0)
-        feature_vals["wind_dir_encoded"]  = _wind_dir_encode(wx.get("wind_dir"))
-        feature_vals["ballpark_code"]     = 0   # not used — placeholder
-        feature_vals["wind_dir"]          = wx.get("wind_dir", 0)
-        feature_vals["temp_f"]            = wx.get("temp_f", 72)
-        feature_vals["humidity"]          = wx.get("humidity", 50)
- 
-        # Build array in feature order, fill NaN with 0
-        X_row = np.array([feature_vals.get(f, 0) if not (isinstance(feature_vals.get(f, 0), float) and np.isnan(feature_vals.get(f, 0))) else 0
-                          for f in lr_features], dtype=float).reshape(1, -1)
- 
-        try:
-            prob_raw = pipeline.predict_proba(X_row)[0, 1]  # use full pipeline
-        except Exception:
-            X_scaled = lr_scaler.transform(X_row)
-            prob_raw = lr_model.predict_proba(X_scaled)[0, 1]
- 
-        # ── Sample-size shrinkage (regress small samples toward league avg) ──
-        # League avg per-AB HR rate ≈ 3.4%
-        # Default to 50 ABs when column is missing — conservative.
-        # Need ~260+ ABs for near-full trust. Smaller samples get pulled harder.
-        LEAGUE_AB_RATE = 0.034
-        hr = h_row.iloc[0]
-        n_batted = float(hr["h_n_batted"]) if "h_n_batted" in hitter.columns and not pd.isna(hr.get("h_n_batted")) else 50
-        weight   = min(0.90, max(0.03, (n_batted - 10) / 260.0))
-        prob_raw = weight * prob_raw + (1 - weight) * LEAGUE_AB_RATE
+        barrel    = _safe_float(hr_prof.get("h_barrel_pct"))   or 0.0
+        hard_hit  = _safe_float(hr_prof.get("h_hard_hit_pct")) or 0.0
+        exit_velo = _safe_float(hr_prof.get("h_exit_velo"))    or 88.0
+        base_rate = _safe_float(hr_prof.get("h_hr_rate"))      or 0.034
 
-        # ── Platoon sanity adjustment ──────────────────────────
-        matched_split = _safe_float(hr.get("h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp"))
-        off_split = _safe_float(hr.get("h_hr_vs_lhp" if pitcher_hand == "R" else "h_hr_vs_rhp"))
-        base_rate = _safe_float(hr.get("h_hr_rate")) or LEAGUE_AB_RATE
-        if matched_split is not None:
-            platoon_sample = float(hr.get("h_n_batted", 0) or 0)
-            platoon_weight = min(1.0, max(0.0, (platoon_sample - 60.0) / 220.0))
-            matched_shrunk = platoon_weight * matched_split + (1.0 - platoon_weight) * base_rate
-            if matched_shrunk < base_rate * 0.65:
-                prob_raw *= 0.74
-            elif matched_shrunk < base_rate * 0.78:
-                prob_raw *= 0.82
-            elif matched_shrunk < base_rate * 0.90:
-                prob_raw *= 0.90
-            elif matched_shrunk > base_rate * 1.18:
-                prob_raw *= 1.05
-        if matched_split is not None and off_split is not None and pitcher_hand in {"R", "L"}:
-            if matched_split < off_split * 0.65:
-                prob_raw *= 0.76
-            elif matched_split < off_split * 0.80:
-                prob_raw *= 0.84
-            elif matched_split < off_split * 0.92:
-                prob_raw *= 0.92
- 
-        # ── Z-score signal multiplier ──────────────────────────
-        # Clamp combined_z to ±2.0 so one freak small-sample stat
-        # (e.g. 0.830 xwOBA on 3 fastballs seen) can't explode the output.
-        h_zs_ml = [z for f, (z, v, t) in zscores.items() if t == "hitter"]
-        p_zs_ml = [z for f, (z, v, t) in zscores.items() if t == "pitcher"]
-        h_top_ml   = sorted(h_zs_ml, reverse=True)[:5]
-        h_score_ml = float(np.mean(h_top_ml)) if h_top_ml else 0.0
-        p_score_ml = float(np.mean(p_zs_ml))  if p_zs_ml  else 0.0
-        combined_z = h_score_ml * 0.50 + p_score_ml * 0.50 + wx_adj
-        combined_z = max(-1.6, min(1.6, combined_z))   # more conservative boost/suppression
-        prob_raw   = prob_raw * math.exp(combined_z * 0.20)
- 
-        # ── Pitcher + bullpen blended adjustment ───────────────
-        # Starters pitch ~60% of the game, bullpen covers ~40%.
-        # Blend: 60% starter quality + 40% team bullpen quality.
-        if pitcher_found:
-            p_hr_allowed = float(_shrunk_pitcher_value(p_row.iloc[0], "p_hr_rate_allowed") or LEAGUE_AB_RATE)
-            if   p_hr_allowed < 0.015: starter_mult = 0.70
-            elif p_hr_allowed < 0.022: starter_mult = 0.85
-            elif p_hr_allowed > 0.045: starter_mult = 1.18
-            elif p_hr_allowed > 0.035: starter_mult = 1.10
-            else:                      starter_mult = 1.00
-        else:
-            starter_mult = 0.95  # unknown starter: slight penalty
+        split_col    = "h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp"
+        platoon_rate = _safe_float(hr_prof.get(split_col)) or base_rate
+        # Shrink platoon rate toward overall rate for small samples
+        platoon_wt   = min(1.0, max(0.0, (n_batted - 60) / 200.0))
+        platoon_shrunk = platoon_wt * platoon_rate + (1 - platoon_wt) * base_rate
 
-        bullpen_mult = _bullpen_multiplier(opp_team or home_team)
-
-        # ── Blend ML output with a baseball-calibrated heuristic ──────
-        # The ML ranking is useful, but calibrated raw HR probabilities can get
-        # too conservative for established sluggers. Blend it with a simpler
-        # baseball prior built from:
-        #   1. hitter baseline HR rate
-        #   2. handedness split
-        #   3. pitcher weakness to that side
-        #   4. core power/contact quality
-        matched_shrunk = base_rate
-        if matched_split is not None:
-            platoon_sample = float(hr.get(f"h_n_batted_vs_{'rhp' if pitcher_hand == 'R' else 'lhp'}", 0) or 0)
-            hand_weight = min(1.0, max(0.0, (platoon_sample - 10.0) / 90.0))
-            matched_shrunk = hand_weight * matched_split + (1.0 - hand_weight) * base_rate
-
-        side_pitcher_hr = None
-        if pitcher_found:
-            pr = p_row.iloc[0]
-            side_pitcher_hr = _derive_matchup_feature("p_hr_rate_allowed_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
-        if side_pitcher_hr is None:
-            side_pitcher_hr = p_hr_allowed if pitcher_found else LEAGUE_AB_RATE
-
-        contact_score = _safe_float(hr.get("h_hr_contact_score")) or 0.0
-        hand_contact = _derive_matchup_feature("h_hr_contact_score_vs_hand", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-        if hand_contact is None:
-            hand_contact = contact_score
-        pitch_hr_matchup = _derive_matchup_feature("m_pitch_hr_matchup", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-        pitch_contact_matchup = _derive_matchup_feature("m_pitch_contact_matchup", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-
-        barrel     = _safe_float(hr.get("h_barrel_pct"))     or 0.0
-        exit_velo  = _safe_float(hr.get("h_exit_velo"))      or 0.0
-        hard_hit   = _safe_float(hr.get("h_hard_hit_pct"))   or 0.0
-
-        power_mult = 0.92
-
-        # Barrel rate (0.73 corr) — primary
-        if barrel >= 0.18:   power_mult += 0.28
-        elif barrel >= 0.14: power_mult += 0.20
-        elif barrel >= 0.10: power_mult += 0.12
-        elif barrel >= 0.07: power_mult += 0.05
-        elif barrel < 0.04:  power_mult -= 0.10
-
-        # Hard-hit rate (0.39 corr) — secondary
-        if hard_hit >= 0.42:   power_mult += 0.10
-        elif hard_hit >= 0.36: power_mult += 0.06
-        elif hard_hit >= 0.30: power_mult += 0.02
-        elif hard_hit < 0.25:  power_mult -= 0.05
-
-        # Exit velo (0.36 corr) — tertiary, half the weight of barrel
-        if exit_velo >= 92.0:   power_mult += 0.07
-        elif exit_velo >= 90.0: power_mult += 0.04
-        elif exit_velo >= 88.0: power_mult += 0.01
-        elif exit_velo < 86.0:  power_mult -= 0.05
-
-        if hand_contact >= contact_score * 1.08:  power_mult += 0.06
-        elif hand_contact <= contact_score * 0.90: power_mult -= 0.05
-        if pitch_hr_matchup is not None and pitch_hr_matchup >= 0.010: power_mult += 0.05
-        if pitch_contact_matchup is not None and pitch_contact_matchup >= 0.090: power_mult += 0.04
-
-        # 40% hitter: batter HR ability (overall + platoon blend) scaled by contact quality
-        batter_component = (base_rate * 0.60 + matched_shrunk * 0.40) * power_mult
-
-        # 40% pitcher: side-specific HR rate allowed, scaled by starter tier
-        pitcher_component = side_pitcher_hr * starter_mult
-
-        # 20% context: league baseline adjusted for ballpark, weather, and bullpen
-        ballpark_factor = BALLPARK_HR_FACTORS.get(home_team, 1.0)
-        context_component = LEAGUE_AB_RATE * bullpen_mult * ballpark_factor
-
-        heuristic_ab = (
-            batter_component  * 0.40
-            + pitcher_component * 0.40
-            + context_component * 0.20
+        batter_score = (
+            norm(barrel,         0.03, 0.20) * 0.35
+          + norm(hard_hit,       0.22, 0.52) * 0.25
+          + norm(exit_velo,      83.0, 95.0) * 0.20
+          + norm(platoon_shrunk, 0.005, 0.09) * 0.20
         )
-        heuristic_ab = max(0.006, min(0.09, heuristic_ab))
-
-        # Blend the model with the baseball prior. Established hitters get more
-        # weight on the prior so stars don't collapse to the floor from an
-        # over-conservative calibrated model.
-        established = min(1.0, max(0.0, (n_batted - 80.0) / 220.0))
-        heuristic_weight = 0.30 + 0.20 * established
-        prob_raw = (1.0 - heuristic_weight) * prob_raw + heuristic_weight * heuristic_ab
-
-        # ── Reality check for fringe bats ─────────────────────
-        # Do not let thin-contact or middling-power bats leap into elite HR
-        # territory just because a split/matchup line looks favorable.
-        barrel = _safe_float(hr.get("h_barrel_pct")) or 0.0
-        exit_velo = _safe_float(hr.get("h_exit_velo")) or 0.0
-        hard_hit = _safe_float(hr.get("h_hard_hit_pct")) or 0.0
-        pull_air = _safe_float(hr.get("h_pull_air_pct")) or 0.0
-        sweet_spot = _safe_float(hr.get("h_sweet_spot_pct")) or 0.0
-
-        if barrel < 0.04 and exit_velo < 84.0 and hard_hit < 0.28:
-            prob_raw = min(prob_raw, 0.022)
-        elif barrel < 0.06 and exit_velo < 85.0 and hard_hit < 0.31:
-            prob_raw = min(prob_raw, 0.028)
-        elif barrel < 0.08 and exit_velo < 86.0 and hard_hit < 0.34 and pull_air < 0.18:
-            prob_raw = min(prob_raw, 0.036)
-        elif barrel < 0.10 and exit_velo < 87.0 and hard_hit < 0.36 and sweet_spot < 0.32:
-            prob_raw = min(prob_raw, 0.050)
-
-        # Very small overall sample should never sit at the very top of the board.
-        if n_batted < 140 and (barrel < 0.08 or exit_velo < 86.0):
-            prob_raw = min(prob_raw, 0.040)
-        elif n_batted < 220 and barrel < 0.07 and exit_velo < 85.5:
-            prob_raw = min(prob_raw, 0.045)
-
-        # Established sluggers should not collapse unrealistically low when both
-        # the baseline power traits and sample size are strong.
-        elite_power = (
-            n_batted >= 260
-            and barrel >= 0.10
-            and exit_velo >= 86.0
-            and hard_hit >= 0.35
-        )
-        upper_tier_power = (
-            n_batted >= 220
-            and (
-                (barrel >= 0.08 and exit_velo >= 86.5 and hard_hit >= 0.34)
-                or contact_score >= 0.205
-            )
-        )
-        if elite_power:
-            prob_raw = max(prob_raw, 0.045)
-            if matched_shrunk >= base_rate * 1.08 or hand_contact >= contact_score * 1.03:
-                prob_raw = max(prob_raw, 0.055)
-        elif upper_tier_power:
-            prob_raw = max(prob_raw, 0.038)
-            if matched_shrunk >= base_rate:
-                prob_raw = max(prob_raw, 0.044)
-
-        # ── Hard cap by sample size (applied AFTER all multipliers) ────
-        # Prevents small-sample flukes from surviving the z-score boost.
-        if   n_batted < 100: prob_raw = min(prob_raw, 0.032)  # → ~11% per-game max
-        elif n_batted < 150: prob_raw = min(prob_raw, 0.045)  # → ~15% per-game max
-        elif n_batted < 220: prob_raw = min(prob_raw, 0.060)
- 
-        # ── Convert score to displayed HR probability ─────────
-        # Keep the ML model for ranking, but use a baseball-calibrated display
-        # curve so obvious sluggers do not look absurdly underpriced.
-        n_pa = 3.9
-        prob_raw_clamped = max(0.001, min(0.12, prob_raw))
-        heuristic_clamped = max(0.004, min(0.09, heuristic_ab))
-
-        # Blend ML model with baseball prior. z-score signal is already baked
-        # into prob_raw so we do not apply it again here.
-        display_ab = 0.45 * prob_raw_clamped + 0.55 * heuristic_clamped
-
-        # Modest extra lift for elite/upper-tier sluggers.
-        if elite_power:
-            display_ab *= 1.07
-        elif upper_tier_power:
-            display_ab *= 1.04
-
-        # Preserve the fringe-bat caps but keep a stronger floor for real sluggers.
-        if elite_power or upper_tier_power:
-            display_ab = max(display_ab, heuristic_clamped * (0.92 if upper_tier_power else 0.98))
-
-        display_ab = max(0.006, min(0.13, display_ab))
-        prob = (1.0 - (1.0 - display_ab) ** n_pa) * 100
-        if prob > 22.0:
-            prob = 22.0 + (prob - 22.0) * 0.50
-        prob = max(3.0, min(30.0, prob))
- 
     else:
-        # --- Z-score fallback (no trained model) ---
-        # Base rate = 11% per game (league avg ~3.4% per-AB × 3.5 PA)
-        # Slope = 0.80 gives:  z=0→11%  z=1→19%  z=2→29%  z=3→40%→cap30%
-        h_zs = [z for f, (z, v, t) in zscores.items() if t == "hitter"]
-        p_zs = [z for f, (z, v, t) in zscores.items() if t == "pitcher"]
-        h_top    = sorted(h_zs, reverse=True)[:5]
-        h_score  = float(np.mean(h_top)) if h_top else 0.0
-        p_score  = float(np.mean(p_zs))  if p_zs  else 0.0
-        total_z  = h_score * 0.70 + p_score * 0.30 + wx_adj
-        # BASE_RATE 0.11 → ~10% per-game avg  SLOPE 0.45 → star(z=1.5)≈16%
-        BASE_RATE = 0.11
-        SLOPE     = 0.45
-        log_odds  = math.log(BASE_RATE / (1.0 - BASE_RATE)) + total_z * SLOPE
-        prob      = min(25.0, 100.0 / (1.0 + math.exp(-log_odds)))
+        batter_score = 50.0
+        n_batted = 0
+        base_rate = 0.034
+        hr_prof = None
+
+    # ── Pitcher score ──────────────────────────────────────────
+    if pitcher_found:
+        pr_prof = p_row.iloc[0]
+        dummy_hr = hr_prof if hr_prof is not None else pd.Series(dtype=float)
+        side_hr = _derive_matchup_feature(
+            "p_hr_rate_allowed_vs_side", dummy_hr, pr_prof, batter_side_suffix, pitcher_hand
+        )
+        hr_allowed       = side_hr if side_hr is not None else (_safe_float(pr_prof.get("p_hr_rate_allowed")) or 0.034)
+        barrel_allowed   = _safe_float(pr_prof.get("p_barrel_pct_allowed"))   or 0.06
+        hard_hit_allowed = _safe_float(pr_prof.get("p_hard_hit_pct_allowed")) or 0.35
+
+        pitcher_score = (
+            norm(hr_allowed,       0.010, 0.055) * 0.50
+          + norm(barrel_allowed,   0.030, 0.130) * 0.30
+          + norm(hard_hit_allowed, 0.270, 0.480) * 0.20
+        )
+    else:
+        pitcher_score = 50.0
+
+    # ── Context score ──────────────────────────────────────────
+    temp = wx.get("temp_f", 72)
+    wind = wx.get("wind_speed", 0)
+    ballpark_factor = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+
+    context_score = (
+        norm(ballpark_factor, 0.82, 1.40) * 0.50
+      + norm(temp,  40.0, 100.0)          * 0.30
+      + norm(wind,   0.0,  20.0)          * 0.20
+    )
+
+    # ── Final matchup score and display probability ────────────
+    matchup_score = (
+        batter_score  * 0.40
+      + pitcher_score * 0.40
+      + context_score * 0.20
+    )
+    matchup_score = round(matchup_score, 1)
+
+    # Convert 0–100 index to a per-game display probability (3–30%)
+    # used only for edge calculation vs book odds
+    prob = 3.0 + (matchup_score / 100.0) * 27.0
  
     # ── Pick reasons: top positive z-scores + worst negatives ──
     # Positive: good stats / HR-prone pitcher → show top 2-3
@@ -1409,8 +1156,8 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     if not reasons:
         reasons = ["Limited historical data for this matchup"]
  
-    return round(prob, 2), reasons
- 
+    return round(prob, 2), reasons, matchup_score
+
 # ── Roster ─────────────────────────────────────────────────────
 def get_roster(team_id):
     try:
@@ -1699,9 +1446,10 @@ def build_dashboard():
                 model_prob = None
                 reasons    = []
  
+                matchup_score = None
                 if in_model and opp_pitcher != "TBD":
                     try:
-                        model_prob, reasons = predict_with_reasons(bid, opp_pitcher, home, opp_hand, opp_team)
+                        model_prob, reasons, matchup_score = predict_with_reasons(bid, opp_pitcher, home, opp_hand, opp_team)
                         players_scored += 1
                     except Exception as e:
                         print(f"  Error {name}: {e}")
@@ -1751,6 +1499,7 @@ def build_dashboard():
                     "book_name":    book_name,
                     "n_books":      n_books,
                     "model_prob":   model_prob,
+                    "matchup_score": matchup_score,
                     "edge":         edge,
                     "value":        value,
                     "reasons":      reasons,
