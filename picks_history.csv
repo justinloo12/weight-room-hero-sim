@@ -797,7 +797,7 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-06-08,best_value_top10,10,Taylor Walls,670764,TB,BOS@TB,Connelly Early,ESPN BET,1200,13.39,7.69,5.70,100.00,,,,,,,,,,,,,,,,,,,,
 2026-06-08,highest_probability_top10,1,Wade Meckler,685133,LAA,HOU@LAA,Spencer Arrighetti,ESPN BET,900,25.00,10.00,15.00,100.00,,,,,,,,,,,,,,,,,,,,
 2026-06-08,highest_probability_top10,2,Kyle Schwarber,656941,PHI,PHI@TOR,Patrick Corbin,ESPN BET,250,22.23,28.57,-6.34,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-08,highest_probability_top10,3,Junior Caminero,691406,TB,BOS@TB,Connelly Early,ESPN BET,350,20.30,22.22,-1.92,100.00,,,,,,,,,,,,,,,,,,,,
+2026-06-08,highest_probability_top10,3,Junior Caminero,691406,TB,BOS@TB,Connelly Early,ESPN BET,325,20.30,23.53,-3.23,100.00,,,,,,,,,,,,,,,,,,,,
 2026-06-08,highest_probability_top10,4,Ben Rice,700250,NYY,NYY@CLE,Gavin Williams,ESPN BET,300,19.22,25.00,-5.78,100.00,,,,,,,,,,,,,,,,,,,,
 2026-06-08,highest_probability_top10,5,James Wood,695578,WSH,WSH@SF,Logan Webb,ESPN BET,550,18.75,15.38,3.37,100.00,,,,,,,,,,,,,,,,,,,,
 2026-06-08,highest_probability_top10,6,Sal Stewart,701398,CIN,CIN@SD,Walker Buehler,ESPN BET,500,18.59,16.67,1.92,100.00,,,,,,,,,,,,,,,,,,,,
