@@ -819,18 +819,18 @@ date,pick_type,rank,player,batter_id,team,game,pitcher,sportsbook,book_odds,mode
 2026-06-09,highest_probability_top10,8,James Wood,695578,WSH,WSH@SF,Adrian Houser,ESPN BET,400,15.61,20.00,-4.39,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
 2026-06-09,highest_probability_top10,9,Eugenio Suárez,553993,CIN,CIN@SD,Lucas Giolito,ESPN BET,450,15.52,18.18,-2.66,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
 2026-06-09,highest_probability_top10,10,Nick Kurtz,701762,ATH,MIL@ATH,Robert Gasser,ESPN BET,190,15.50,34.48,-18.98,100.00,HR,190.00,,,,,,,,,,,,,,,,,,
-2026-06-10,best_value_top10,1,Jonah Cox,813841,SF,WSH@SF,Foster Griffin,Hard Rock Bet,1000,20.18,9.09,11.09,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,best_value_top10,2,Gary Sánchez,596142,MIL,MIL@ATH,Jack Perkins,ESPN BET,1100,12.76,8.33,4.43,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,best_value_top10,3,Esteury Ruiz,665923,MIA,AZ@MIA,Ryne Nelson,hardrockbet_oh,1100,11.40,8.33,3.07,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,best_value_top10,4,Charles McAdoo,807727,TOR,PHI@TOR,Jesús Luzardo,ESPN BET,800,14.80,11.11,3.69,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,best_value_top10,5,Ali Sánchez,645305,NYY,NYY@CLE,Parker Messick,ESPN BET,1100,10.76,8.33,2.43,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,1,Kyle Schwarber,656941,PHI,PHI@TOR,Max Scherzer,Hard Rock Bet,165,25.40,37.74,-12.34,100.00,,,,,,,,,,,,,,,,,,,,2026-06-10 08:25 PM ET
-2026-06-10,highest_probability_top10,2,Juan Soto,665742,NYM,STL@NYM,Andre Pallante,ESPN BET,375,22.29,21.05,1.24,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,3,Shohei Ohtani,660271,LAD,LAD@PIT,Jared Jones,ESPN BET,300,21.41,25.00,-3.59,100.00,,,,,,,,,,,,,,,,,,,,2026-06-10 08:25 PM ET
-2026-06-10,highest_probability_top10,4,Jonah Cox,813841,SF,WSH@SF,Foster Griffin,Hard Rock Bet,1000,20.18,9.09,11.09,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,5,Dalton Rushing,687221,LAD,LAD@PIT,Jared Jones,ESPN BET,500,16.75,16.67,0.08,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,6,Michael Busch,683737,CHC,CHC@COL,Michael Lorenzen,ESPN BET,300,16.52,25.00,-8.48,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,7,Eugenio Suárez,553993,CIN,CIN@SD,Michael King,ESPN BET,500,15.94,16.67,-0.73,100.00,,,,,,,,,,,,,,,,,,,,2026-06-10 06:59 PM ET
-2026-06-10,highest_probability_top10,8,Ben Rice,700250,NYY,NYY@CLE,Parker Messick,ESPN BET,375,15.53,21.05,-5.52,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,9,Max Muncy,571970,LAD,LAD@PIT,Jared Jones,ESPN BET,400,15.45,20.00,-4.55,100.00,,,,,,,,,,,,,,,,,,,,
-2026-06-10,highest_probability_top10,10,Corey Seager,608369,TEX,TEX@KC,Seth Lugo,ESPN BET,300,15.28,25.00,-9.72,100.00,,,,,,,,,,,,,,,,,,,,
+2026-06-10,best_value_top10,1,Jonah Cox,813841,SF,WSH@SF,Foster Griffin,Hard Rock Bet,1000,20.18,9.09,11.09,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,best_value_top10,2,Gary Sánchez,596142,MIL,MIL@ATH,Jack Perkins,ESPN BET,1100,12.76,8.33,4.43,100.00,HR,1100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,best_value_top10,3,Esteury Ruiz,665923,MIA,AZ@MIA,Ryne Nelson,hardrockbet_oh,1100,11.40,8.33,3.07,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,best_value_top10,4,Charles McAdoo,807727,TOR,PHI@TOR,Jesús Luzardo,ESPN BET,800,14.80,11.11,3.69,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,best_value_top10,5,Ali Sánchez,645305,NYY,NYY@CLE,Parker Messick,ESPN BET,1100,10.76,8.33,2.43,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,1,Kyle Schwarber,656941,PHI,PHI@TOR,Max Scherzer,Hard Rock Bet,165,25.40,37.74,-12.34,100.00,HR,165.00,,,,,,,,,,,,,,,,,,2026-06-10 08:25 PM ET
+2026-06-10,highest_probability_top10,2,Juan Soto,665742,NYM,STL@NYM,Andre Pallante,ESPN BET,375,22.29,21.05,1.24,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,3,Shohei Ohtani,660271,LAD,LAD@PIT,Jared Jones,ESPN BET,300,21.41,25.00,-3.59,100.00,HR,300.00,,,,,,,,,,,,,,,,,,2026-06-10 08:25 PM ET
+2026-06-10,highest_probability_top10,4,Jonah Cox,813841,SF,WSH@SF,Foster Griffin,Hard Rock Bet,1000,20.18,9.09,11.09,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,5,Dalton Rushing,687221,LAD,LAD@PIT,Jared Jones,ESPN BET,500,16.75,16.67,0.08,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,6,Michael Busch,683737,CHC,CHC@COL,Michael Lorenzen,ESPN BET,300,16.52,25.00,-8.48,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,7,Eugenio Suárez,553993,CIN,CIN@SD,Michael King,ESPN BET,500,15.94,16.67,-0.73,100.00,HR,500.00,,,,,,,,,,,,,,,,,,2026-06-10 06:59 PM ET
+2026-06-10,highest_probability_top10,8,Ben Rice,700250,NYY,NYY@CLE,Parker Messick,ESPN BET,375,15.53,21.05,-5.52,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,9,Max Muncy,571970,LAD,LAD@PIT,Jared Jones,ESPN BET,400,15.45,20.00,-4.55,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
+2026-06-10,highest_probability_top10,10,Corey Seager,608369,TEX,TEX@KC,Seth Lugo,ESPN BET,300,15.28,25.00,-9.72,100.00,No HR,-100.00,,,,,,,,,,,,,,,,,,
