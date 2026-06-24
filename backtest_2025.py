@@ -242,8 +242,11 @@ def predict_prob(batter_id, opp_pitcher_name, home_team, pitcher_hand):
             s_pa         = LEAGUE_AVG_PA * STARTER_PA_FRAC
             b_pa         = LEAGUE_AVG_PA * BULLPEN_PA_FRAC
             prob_game    = 1 - (1 - prob_ab) ** s_pa * (1 - bp_ab) ** b_pa
-            matchup_score = None
-            return round(prob_game * 100, 2), matchup_score
+            # Environment multiplier — park-based fallback (historical game totals
+            # aren't in Statcast data; live dashboard uses the market total instead)
+            park_f = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+            env    = max(0.72, min(1.35, park_f))
+            return round(prob_game * 100 * env, 2), None
         except Exception:
             pass
 

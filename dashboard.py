@@ -517,7 +517,58 @@ LEAGUE_AVG_PA   = 4.1    # default when batting order unknown
 STARTER_PA_FRAC = 0.67   # starter faces ~67% of batters (~5-6 innings)
 BULLPEN_PA_FRAC = 0.33   # bullpen faces ~33%
 LEAGUE_AVG_PA_AB = 0.0082  # ~0.82% HR rate per PA across all of MLB
- 
+
+# ── Game-total driven environment model ────────────────────────
+# The game total (over/under) is the market's all-in-one estimate of run
+# environment: it already embeds ballpark, weather, both starting pitchers,
+# and the lineups. We use it as the primary environment multiplier; when no
+# total is posted we fall back to ballpark × weather.
+LEAGUE_AVG_TOTAL  = 8.5   # MLB average game total (runs)
+TOTAL_SENSITIVITY = 0.70  # how strongly HR prob scales with run environment
+ENV_MULT_FLOOR    = 0.72
+ENV_MULT_CEIL     = 1.35
+
+# Full team name (as returned by The-Odds-API) → abbreviation used everywhere else
+TEAM_NAME_TO_ABBR = {
+    "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL", "Baltimore Orioles": "BAL",
+    "Boston Red Sox": "BOS", "Chicago Cubs": "CHC", "Chicago White Sox": "CWS",
+    "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE", "Colorado Rockies": "COL",
+    "Detroit Tigers": "DET", "Houston Astros": "HOU", "Kansas City Royals": "KC",
+    "Los Angeles Angels": "LAA", "Los Angeles Dodgers": "LAD", "Miami Marlins": "MIA",
+    "Milwaukee Brewers": "MIL", "Minnesota Twins": "MIN", "New York Mets": "NYM",
+    "New York Yankees": "NYY", "Oakland Athletics": "OAK", "Athletics": "OAK",
+    "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT", "San Diego Padres": "SD",
+    "San Francisco Giants": "SF", "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL",
+    "Tampa Bay Rays": "TB", "Texas Rangers": "TEX", "Toronto Blue Jays": "TOR",
+    "Washington Nationals": "WSH",
+}
+
+def _weather_env_factor(wx):
+    """Park-independent weather multiplier centered at 1.0."""
+    temp = wx.get("temp_f", 72) if wx else 72
+    wind = wx.get("wind_speed", 0) if wx else 0
+    factor = 1.0
+    if   temp >= 90: factor += 0.06
+    elif temp >= 80: factor += 0.03
+    elif temp <= 45: factor -= 0.06
+    elif temp <= 55: factor -= 0.03
+    if   wind >= 15: factor += 0.04
+    elif wind >= 10: factor += 0.02
+    return factor
+
+def environment_multiplier(game_total, home_team, wx):
+    """HR-environment multiplier centered at 1.0 for a league-average game.
+
+    Primary: the market game total (embeds park + weather + pitching + lineups).
+    Fallback: ballpark factor × weather factor when no total is available.
+    """
+    if game_total is not None and game_total > 0:
+        mult = (game_total / LEAGUE_AVG_TOTAL) ** TOTAL_SENSITIVITY
+        return max(ENV_MULT_FLOOR, min(ENV_MULT_CEIL, mult))
+    park = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+    mult = park * _weather_env_factor(wx)
+    return max(ENV_MULT_FLOOR, min(ENV_MULT_CEIL, mult))
+
 def _wind_dir_encode(direction):
     """Cardinal direction string → 0-1 float."""
     wind_map = {
@@ -1071,7 +1122,7 @@ def _build_ml_feature_row(h_row, p_row, batter_right, batter_side_suffix, pitche
     return feat
 
 
-def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None, batting_order=None):
+def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None, batting_order=None, game_total=None):
     h_row = hitter[hitter["batter"] == batter_id]
     p_row = _resolve_pitcher_row(pitcher_name, allow_fuzzy=False)
 
@@ -1199,6 +1250,10 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     bullpen_ab_rate = TEAM_BULLPEN_HR_RATE.get(opp, LEAGUE_AVG_BULLPEN)
     expected_pa = PA_BY_ORDER.get(batting_order, LEAGUE_AVG_PA)
 
+    # Environment multiplier — game total (preferred) or park × weather fallback.
+    # The ML model predicts environment-neutral talent; environment is applied here.
+    env_mult = environment_multiplier(game_total, home_team, wx)
+
     prob = None
     if ML_MODEL is not None and len(ML_FEATURES) > 0 and len(h_row) > 0:
         try:
@@ -1221,16 +1276,18 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
 
             # P(no HR in game) = P(no HR off starter)^starter_pa × P(no HR off bullpen)^bullpen_pa
             prob_no_hr = (1 - prob_ab) ** starter_pa * (1 - bullpen_pa_ab) ** bullpen_pa
-            prob = round((1 - prob_no_hr) * 100, 2)
+            prob_neutral = (1 - prob_no_hr) * 100
+            prob = round(prob_neutral * env_mult, 2)
         except Exception:
             pass
 
     if prob is None:
-        # Fallback: formula-based conversion from 0-100 matchup index.
-        # Anchored so matchup_score=50 → ~8% per game (realistic league average)
-        # and max ~25% for elite matchups.
-        park_mult = BALLPARK_HR_FACTORS.get(home_team, 1.0)
-        prob = round((3.0 + (matchup_score / 100.0) * 22.0) * park_mult, 2)
+        # Fallback: talent-only base (batter + pitcher) × environment multiplier.
+        # Uses batter/pitcher scores only so environment isn't double-counted.
+        talent = batter_score * 0.5 + pitcher_score * 0.5  # 0-100
+        prob = round((3.0 + (talent / 100.0) * 22.0) * env_mult, 2)
+
+    prob = max(0.3, min(45.0, prob))
  
     # ── Pick reasons: top positive z-scores + worst negatives ──
     # Positive: good stats / HR-prone pitcher → show top 2-3
@@ -1324,7 +1381,18 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         reasons.append(f"⚡ {opp} bullpen gives up home runs at one of the highest rates in MLB")
     elif bp_rate >= 0.038:
         reasons.append(f"{opp} bullpen is HR-prone — good chance of seeing relievers late")
- 
+
+    # ── Game total (run environment) ────────────────────────────
+    if game_total is not None and game_total > 0:
+        if game_total >= 9.5:
+            reasons.append(f"⚡ High game total ({game_total}) — books expect a big offensive game")
+        elif game_total >= 9.0:
+            reasons.append(f"Game total {game_total} — above-average run environment")
+        elif game_total <= 7.0:
+            reasons.append(f"❄️ Low game total ({game_total}) — books expect a pitcher's duel")
+        elif game_total <= 7.5:
+            reasons.append(f"Game total {game_total} — below-average run environment")
+
     if not reasons:
         reasons = ["Limited historical data for this matchup"]
  
@@ -1360,6 +1428,7 @@ def fetch_odds():
     print("Fetching HR odds from live sportsbooks...")
     now_utc = datetime.now(timezone.utc)
     raw_all  = {}   # {ckey: {book_key: {"player", "book_odds", "book_implied", "book"}}}
+    game_totals = {}  # {team_abbr: over/under total} for both home & away teams
     seen_books = set()
     books_with_hr_market = set()
     draftkings_seen = False
@@ -1371,11 +1440,11 @@ def fetch_odds():
         )
         if ev_resp.status_code != 200:
             print(f"  Events error: {ev_resp.status_code}")
-            return {}
- 
+            return {}, {}
+
         events = ev_resp.json()
         if not isinstance(events, list):
-            return {}
+            return {}, {}
  
         # ── Filter to pregame events only ─────────────────────
         pregame = []
@@ -1399,7 +1468,7 @@ def fetch_odds():
  
             pr = requests.get(
                 f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events/{eid}/odds"
-                f"?apiKey={ODDS_API_KEY}&regions=us,us2&markets=batter_home_runs"
+                f"?apiKey={ODDS_API_KEY}&regions=us,us2&markets=batter_home_runs,totals"
                 f"&oddsFormat=american", timeout=15
             )
             if pr.status_code == 429:
@@ -1410,12 +1479,28 @@ def fetch_odds():
             if i == 0:
                 print(f"  Requests remaining: {pr.headers.get('x-requests-remaining','?')}")
 
-            for bm in pr.json().get("bookmakers", []):
+            odds_json   = pr.json()
+            home_abbr   = TEAM_NAME_TO_ABBR.get(odds_json.get("home_team", ""))
+            away_abbr   = TEAM_NAME_TO_ABBR.get(odds_json.get("away_team", ""))
+            event_total_pts = []  # collect totals across books, then average
+
+            for bm in odds_json.get("bookmakers", []):
                 book_key = bm.get("key", "")
                 if not book_key:
                     continue
                 seen_books.add(book_key)
                 for market in bm.get("markets", []):
+                    # ── Game total (over/under) ──────────────────
+                    if market.get("key") == "totals":
+                        for outcome in market.get("outcomes", []):
+                            if str(outcome.get("name", "")).strip().lower() == "over":
+                                pt = outcome.get("point")
+                                if pt is not None:
+                                    try:
+                                        event_total_pts.append(float(pt))
+                                    except (TypeError, ValueError):
+                                        pass
+                        continue
                     if market.get("key") != "batter_home_runs":
                         continue
                     books_with_hr_market.add(book_key)
@@ -1473,6 +1558,14 @@ def fetch_odds():
                                 "book_implied": round(fair_implied * 100, 2),
                                 "book":         book_key,
                             }
+
+            # Store consensus game total for both teams in this matchup
+            if event_total_pts:
+                avg_total = round(sum(event_total_pts) / len(event_total_pts), 1)
+                if home_abbr:
+                    game_totals[home_abbr] = avg_total
+                if away_abbr:
+                    game_totals[away_abbr] = avg_total
     except Exception as e:
         print(f"  Odds error: {e}")
 
@@ -1500,8 +1593,10 @@ def fetch_odds():
         print("  No batter_home_runs market returned by the API for today's MLB events.")
     else:
         print("  No sportsbook data returned for today's MLB events.")
-    return results
- 
+    if game_totals:
+        print(f"  Game totals captured for {len(game_totals)//2} games")
+    return results, game_totals
+
 # ── Schedule + pitcher hand ────────────────────────────────────
 pitcher_hand_cache = {}
 def get_pitcher_hand(pitcher_id):
@@ -1590,7 +1685,7 @@ def fetch_games():
  
 # ── Build predictions ──────────────────────────────────────────
 def build_dashboard():
-    odds  = fetch_odds()
+    odds, game_totals = fetch_odds()
     games, batting_orders = fetch_games()
     all_preds = []
  
@@ -1657,8 +1752,10 @@ def build_dashboard():
                 if in_model and opp_pitcher != "TBD":
                     try:
                         batting_order = batting_orders.get(bid)
+                        game_total = game_totals.get(home)
                         model_prob, reasons, matchup_score = predict_with_reasons(
-                            bid, opp_pitcher, home, opp_hand, opp_team, batting_order=batting_order
+                            bid, opp_pitcher, home, opp_hand, opp_team,
+                            batting_order=batting_order, game_total=game_total
                         )
                         players_scored += 1
                     except Exception as e:
