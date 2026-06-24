@@ -91,7 +91,27 @@ pitcher_pop = _pop_stats(pitcher, "p_")
 print(f"  Hitter features with stats:  {len(hitter_pop)}")
 print(f"  Pitcher features with stats: {len(pitcher_pop)}")
  
-print("ML model disabled — using matchup index formula.")
+ML_MODEL = None
+ML_FEATURES = []
+try:
+    ML_MODEL = pickle.load(open("hr_model.pkl", "rb"))
+    ML_FEATURES = pd.read_csv("model_features.csv")["feature"].tolist()
+    print(f"ML model loaded: {len(ML_FEATURES)} features")
+except Exception as _ml_err:
+    print(f"ML model not available ({_ml_err}) — using matchup index formula.")
+
+# Ballpark code mapping — produced by build_features.py for consistent encoding
+_BALLPARK_CODE_MAP: dict[str, int] = {}
+try:
+    _bpc = pd.read_csv("ballpark_codes.csv")
+    _BALLPARK_CODE_MAP = dict(zip(_bpc["home_team"], _bpc["ballpark_code"].astype(int)))
+    print(f"  Ballpark code map loaded: {len(_BALLPARK_CODE_MAP)} teams")
+except Exception:
+    # Fallback: sorted list matching the ALL_TEAMS list in _build_ml_feature_row
+    _ALL_TEAMS_SORTED = sorted(["ATL","ARI","BAL","BOS","CHC","CWS","CIN","CLE","COL","DET",
+                                 "HOU","KC","LAA","LAD","MIA","MIL","MIN","NYM","NYY","OAK",
+                                 "PHI","PIT","SD","SF","SEA","STL","TB","TEX","TOR","WSH"])
+    _BALLPARK_CODE_MAP = {t: i for i, t in enumerate(_ALL_TEAMS_SORTED)}
  
 # ── Ballpark GPS coordinates ───────────────────────────────────
 ballpark_coords = {
@@ -454,11 +474,49 @@ PITCHER_VULN_FEATS = [
     "p_hr_contact_risk_vs_side", "p_lift_damage_risk_vs_side",
 ]
  
-# Ballpark HR rate factors (for ML feature building)
+# Ballpark HR rate factors — full 30 teams (2023-2025 Statcast park factors)
+# 1.0 = league average; >1.0 = HR-friendly; <1.0 = HR-suppressing
 BALLPARK_HR_FACTORS = {
-    "NYY": 1.25, "COL": 1.35, "TEX": 1.15, "HOU": 1.10,
-    "ARI": 1.08, "OAK": 0.92, "PIT": 0.88, "SD":  0.85,
+    "COL": 1.38,  # Coors Field — thin air, highest HR park in baseball
+    "CIN": 1.22,  # Great American Ball Park — launched fly balls carry well
+    "NYY": 1.18,  # Yankee Stadium — short right-field porch
+    "PHI": 1.16,  # Citizens Bank Park — compact, hitter-friendly
+    "TEX": 1.14,  # Globe Life Field — warm air, homer-friendly dimensions
+    "CHC": 1.12,  # Wrigley Field — blowing out = big HR games
+    "ARI": 1.10,  # Chase Field — warm desert air
+    "HOU": 1.07,  # Minute Maid Park — short left-field Crawford Boxes
+    "MIA": 1.06,  # loanDepot park — warm humid air
+    "DET": 1.04,  # Comerica Park — recent dims changes made it more neutral
+    "BAL": 1.03,  # Camden Yards — compact outfield
+    "BOS": 1.02,  # Fenway Park — Green Monster inflates doubles not HRs; slight positive
+    "MIN": 1.01,  # Target Field — neutral-to-slight positive
+    "STL": 1.00,  # Busch Stadium — neutral
+    "NYM": 1.00,  # Citi Field — recently softened but still neutral
+    "ATL": 0.99,  # Truist Park — slight pitcher lean
+    "LAD": 0.99,  # Dodger Stadium — marine layer suppresses slightly
+    "KC":  0.98,  # Kauffman Stadium — large outfield
+    "MIL": 0.97,  # American Family Field — roof helps but dimensions suppress
+    "TOR": 0.97,  # Rogers Centre — turf, indoor; neutral-to-slight suppress
+    "CLE": 0.96,  # Progressive Field — large gaps
+    "LAA": 0.95,  # Angel Stadium — spacious outfield
+    "CWS": 0.94,  # Guaranteed Rate Field — deep corners
+    "WSH": 0.94,  # Nationals Park — spacious straightaway
+    "CHW": 0.94,  # alias for CWS
+    "TB":  0.93,  # Tropicana Field — dome suppresses carry
+    "SF":  0.91,  # Oracle Park — marine layer + deep CF
+    "SEA": 0.90,  # T-Mobile Park — marine layer, pitcher-friendly
+    "PIT": 0.89,  # PNC Park — beautiful but suppresses HRs
+    "OAK": 0.88,  # Oakland Coliseum — massive foul territory + cool air
+    "SD":  0.87,  # Petco Park — marine layer + deep park
 }
+
+# Expected plate appearances per game by batting order position (9-inning average)
+PA_BY_ORDER = {1: 4.67, 2: 4.56, 3: 4.45, 4: 4.34, 5: 4.23,
+               6: 4.12, 7: 4.01, 8: 3.90, 9: 3.79}
+LEAGUE_AVG_PA   = 4.1    # default when batting order unknown
+STARTER_PA_FRAC = 0.67   # starter faces ~67% of batters (~5-6 innings)
+BULLPEN_PA_FRAC = 0.33   # bullpen faces ~33%
+LEAGUE_AVG_PA_AB = 0.0082  # ~0.82% HR rate per PA across all of MLB
  
 def _wind_dir_encode(direction):
     """Cardinal direction string → 0-1 float."""
@@ -936,7 +994,84 @@ def _reason_priority(reason):
             return 3
     return 2
  
-def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None):
+def _build_ml_feature_row(h_row, p_row, batter_right, batter_side_suffix, pitcher_hand, wx, home_team):
+    """Build a feature dict matching the columns used to train hr_model.pkl."""
+    feat = {}
+    if len(h_row) > 0:
+        hr = h_row.iloc[0]
+        for col in hr.index:
+            if col.startswith("h_"):
+                v = _safe_float(hr.get(col))
+                feat[col] = v if v is not None else 0.0
+        # Derived vs-hand features (shrunk toward overall)
+        for hf in [
+            "h_hr_rate_vs_hand", "h_xwoba_vs_hand", "h_barrel_pct_vs_hand",
+            "h_hard_hit_pct_vs_hand", "h_launch_angle_vs_hand", "h_sweet_spot_pct_vs_hand",
+            "h_pull_air_pct_vs_hand", "h_hr_contact_score_vs_hand", "h_lifted_power_score_vs_hand",
+        ]:
+            dummy_pr = p_row.iloc[0] if len(p_row) > 0 else pd.Series(dtype=float)
+            v = _derive_matchup_feature(hf, hr, dummy_pr, batter_side_suffix, pitcher_hand)
+            feat[hf] = v if v is not None else 0.0
+
+    if len(p_row) > 0:
+        pr = p_row.iloc[0]
+        for col in pr.index:
+            if col.startswith("p_"):
+                v = _safe_float(pr.get(col))
+                feat[col] = v if v is not None else 0.0
+        # Derived vs-side features (shrunk toward overall)
+        dummy_hr = h_row.iloc[0] if len(h_row) > 0 else pd.Series(dtype=float)
+        for pf in [
+            "p_hr_rate_allowed_vs_side", "p_barrel_pct_allowed_vs_side", "p_hard_hit_pct_allowed_vs_side",
+            "p_exit_velo_allowed_vs_side", "p_launch_angle_allowed_vs_side",
+            "p_sweet_spot_pct_allowed_vs_side", "p_pull_air_pct_allowed_vs_side",
+            "p_hr_contact_risk_vs_side", "p_lift_damage_risk_vs_side",
+        ]:
+            v = _derive_matchup_feature(pf, dummy_hr, pr, batter_side_suffix, pitcher_hand)
+            feat[pf] = v if v is not None else 0.0
+
+    # Context features
+    feat["batter_right"]  = batter_right
+    feat["pitcher_right"] = 1 if pitcher_hand == "R" else 0
+    feat["is_coors"]      = 1 if home_team == "COL" else 0
+    feat["ballpark_code"] = _BALLPARK_CODE_MAP.get(home_team, 0)
+    feat["temp_f"]        = wx.get("temp_f", 72)
+    feat["humidity"]      = wx.get("humidity", 50)
+    feat["wind_speed"]    = wx.get("wind_speed", 0)
+    feat["wind_dir"]      = _wind_dir_encode(wx.get("wind_dir", "S"))
+
+    # Matchup interaction features
+    if len(h_row) > 0 and len(p_row) > 0:
+        feat["m_sweet_spot_contact_edge"]  = feat.get("h_sweet_spot_pct", 0) * feat.get("p_sweet_spot_pct_allowed", 0)
+        feat["m_zone_attack_edge"]         = feat.get("h_zone_contact_pct", 0) * feat.get("p_in_zone_pct", 0)
+        feat["m_barrel_matchup_score"]     = feat.get("h_barrel_pct", 0) * feat.get("p_barrel_pct_allowed", 0)
+        feat["m_lift_matchup_score"]       = (feat.get("h_sweet_spot_pct", 0) * feat.get("p_sweet_spot_pct_allowed", 0)
+                                              + feat.get("h_pull_air_pct", 0) * feat.get("p_pull_air_pct_allowed", 0)) / 2.0
+        feat["m_hr_contact_matchup"]       = feat.get("h_hr_contact_score", 0) * feat.get("p_hr_contact_risk", 0)
+        feat["m_lifted_power_matchup"]     = feat.get("h_lifted_power_score", 0) * feat.get("p_lift_damage_risk", 0)
+        feat["m_handed_hr_matchup"]        = feat.get("h_hr_rate_vs_hand", 0) * feat.get("p_hr_rate_allowed_vs_side", 0)
+        feat["m_handed_contact_matchup"]   = feat.get("h_hr_contact_score_vs_hand", 0) * feat.get("p_hr_contact_risk_vs_side", 0)
+        feat["m_handed_lift_matchup"]      = feat.get("h_lifted_power_score_vs_hand", 0) * feat.get("p_lift_damage_risk_vs_side", 0)
+        # Pitch-type exposure matchups
+        pitch_hr, pitch_xwoba, pitch_ev = [], [], []
+        for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
+            usage_col = f"p_{label}_usage_{'rhh' if batter_right else 'lhh'}"
+            usage = feat.get(usage_col, 0) or 0.0
+            hr_v  = feat.get(f"h_hr_vs_{label}", 0) or 0.0
+            xw_v  = feat.get(f"h_xwoba_vs_{label}", 0) or 0.0
+            h_ev  = feat.get(f"h_ev_vs_{label}", 0) or 0.0
+            p_ev  = feat.get(f"p_ev_allowed_{label}", 0) or 0.0
+            pitch_hr.append(hr_v * usage)
+            pitch_xwoba.append(xw_v * usage)
+            pitch_ev.append((h_ev - p_ev) * usage)
+        feat["m_pitch_hr_matchup"]      = sum(pitch_hr)
+        feat["m_pitch_contact_matchup"] = sum(pitch_xwoba)
+        feat["m_pitch_ev_matchup"]      = sum(pitch_ev)
+
+    return feat
+
+
+def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None, batting_order=None):
     h_row = hitter[hitter["batter"] == batter_id]
     p_row = _resolve_pitcher_row(pitcher_name, allow_fuzzy=False)
 
@@ -1043,12 +1178,12 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     ballpark_factor = BALLPARK_HR_FACTORS.get(home_team, 1.0)
 
     context_score = (
-        norm(ballpark_factor, 0.82, 1.40) * 0.50
-      + norm(temp,  40.0, 100.0)          * 0.30
+        norm(ballpark_factor, 0.86, 1.40) * 0.50
+      + norm(temp,  40.0, 104.0)          * 0.30
       + norm(wind,   0.0,  20.0)          * 0.20
     )
 
-    # ── Final matchup score and display probability ────────────
+    # ── Final matchup score (0-100 display index) ─────────────
     matchup_score = (
         batter_score  * 0.40
       + pitcher_score * 0.40
@@ -1056,9 +1191,46 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     )
     matchup_score = round(matchup_score, 1)
 
-    # Convert 0–100 index to a per-game display probability (3–30%)
-    # used only for edge calculation vs book odds
-    prob = 3.0 + (matchup_score / 100.0) * 27.0
+    # ── Per-game probability ───────────────────────────────────
+    # Try ML model first (calibrated GBM trained on per-PA data).
+    # Convert per-AB probability to per-game using expected PA from batting order.
+    # Blend starter and bullpen: starter faces ~67% of a batter's PAs on average.
+    opp = opp_team or home_team
+    bullpen_ab_rate = TEAM_BULLPEN_HR_RATE.get(opp, LEAGUE_AVG_BULLPEN)
+    expected_pa = PA_BY_ORDER.get(batting_order, LEAGUE_AVG_PA)
+
+    prob = None
+    if ML_MODEL is not None and len(ML_FEATURES) > 0 and len(h_row) > 0:
+        try:
+            feat_row = _build_ml_feature_row(
+                h_row, p_row, batter_right, batter_side_suffix, pitcher_hand, wx, home_team
+            )
+            X = pd.DataFrame([feat_row])
+            for f in ML_FEATURES:
+                if f not in X.columns:
+                    X[f] = 0.0
+            X = X[ML_FEATURES].fillna(0)
+            prob_ab = float(ML_MODEL.predict_proba(X)[0, 1])
+
+            # Adjust bullpen rate by batter quality relative to league avg
+            batter_quality = prob_ab / LEAGUE_AVG_PA_AB if LEAGUE_AVG_PA_AB > 0 else 1.0
+            bullpen_pa_ab  = bullpen_ab_rate * batter_quality
+
+            starter_pa = expected_pa * STARTER_PA_FRAC
+            bullpen_pa = expected_pa * BULLPEN_PA_FRAC
+
+            # P(no HR in game) = P(no HR off starter)^starter_pa × P(no HR off bullpen)^bullpen_pa
+            prob_no_hr = (1 - prob_ab) ** starter_pa * (1 - bullpen_pa_ab) ** bullpen_pa
+            prob = round((1 - prob_no_hr) * 100, 2)
+        except Exception:
+            pass
+
+    if prob is None:
+        # Fallback: formula-based conversion from 0-100 matchup index.
+        # Anchored so matchup_score=50 → ~8% per game (realistic league average)
+        # and max ~25% for elite matchups.
+        park_mult = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+        prob = round((3.0 + (matchup_score / 100.0) * 22.0) * park_mult, 2)
  
     # ── Pick reasons: top positive z-scores + worst negatives ──
     # Positive: good stats / HR-prone pitcher → show top 2-3
@@ -1249,38 +1421,58 @@ def fetch_odds():
                     books_with_hr_market.add(book_key)
                     if book_key == "draftkings":
                         draftkings_seen = True
+                    # Collect both Yes and No prices per player per book for de-vig
+                    _yes_prices = {}  # ckey -> (odds_val, player_name)
+                    _no_prices  = {}  # ckey -> odds_val
                     for outcome in market.get("outcomes", []):
-                        outcome_name = str(outcome.get("name","")).strip().lower()
                         point = outcome.get("point")
-                        if outcome_name in ["no", "under"]:
-                            continue
-                        if outcome_name not in ["yes", "over"] and outcome.get("description"):
-                            continue
                         if point not in (None, 0.5):
                             continue
-                        player = outcome.get("description") or outcome.get("name","")
+                        outcome_name = str(outcome.get("name","")).strip().lower()
                         price  = outcome.get("price")
-                        if not player or price is None:
+                        if price is None:
                             continue
                         try:
                             odds_val = int(float(price))
-                            implied  = american_to_implied(odds_val) * 100
-                            # Valid HR prop range: 2%–38% implied
-                            if implied < 2.0 or implied > 38.0:
-                                continue
-                            ckey = _name_key(player)
-                            if ckey not in raw_all:
-                                raw_all[ckey] = {}
-                            existing = raw_all[ckey].get(book_key)
-                            if not existing or abs((point or 0.5) - 0.5) < 1e-9:
-                                raw_all[ckey][book_key] = {
-                                    "player":       player.strip(),
-                                    "book_odds":    odds_val,
-                                    "book_implied": round(implied, 2),
-                                    "book":         book_key,
-                                }
-                        except:
-                            pass
+                        except (TypeError, ValueError):
+                            continue
+                        if outcome_name in ["yes", "over"]:
+                            player = (outcome.get("description") or "").strip()
+                            if player:
+                                _yes_prices[_name_key(player)] = (odds_val, player)
+                        elif outcome_name in ["no", "under"]:
+                            player = (outcome.get("description") or "").strip()
+                            if player:
+                                _no_prices[_name_key(player)] = odds_val
+                        else:
+                            # Some books put player name directly in "name" field
+                            player = str(outcome.get("name","")).strip()
+                            if player and outcome.get("description"):
+                                pass  # ignore non-yes/no named outcomes with description
+                            elif player:
+                                _yes_prices[_name_key(player)] = (odds_val, player)
+
+                    for ckey, (odds_val, player) in _yes_prices.items():
+                        yes_implied = american_to_implied(odds_val)
+                        if yes_implied < 0.02 or yes_implied > 0.38:
+                            continue
+                        # De-vig: use both sides if "no" price is available
+                        if ckey in _no_prices:
+                            no_implied = american_to_implied(_no_prices[ckey])
+                            fair_implied = yes_implied / (yes_implied + no_implied)
+                        else:
+                            # Approximate de-vig: HR props carry ~10-15% hold on Yes side
+                            fair_implied = yes_implied * 0.88
+                        if ckey not in raw_all:
+                            raw_all[ckey] = {}
+                        existing = raw_all[ckey].get(book_key)
+                        if not existing:
+                            raw_all[ckey][book_key] = {
+                                "player":       player,
+                                "book_odds":    odds_val,
+                                "book_implied": round(fair_implied * 100, 2),
+                                "book":         book_key,
+                            }
     except Exception as e:
         print(f"  Odds error: {e}")
 
@@ -1332,10 +1524,12 @@ def fetch_games():
     today = datetime.now(ET).strftime("%Y-%m-%d")
     print(f"Fetching games for {today}...")
     games = {}
+    # batting_orders: {batter_id -> batting_order_position (1-9)}
+    batting_orders: dict[int, int] = {}
     try:
         sched = requests.get(
             f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={today}"
-            f"&hydrate=probablePitcher,team", timeout=15
+            f"&hydrate=probablePitcher,team,lineups", timeout=15
         ).json()
         for de in sched.get("dates", []):
             for game in de.get("games", []):
@@ -1356,7 +1550,19 @@ def fetch_games():
  
                 home_p_hand = get_pitcher_hand(home_p.get("id"))
                 away_p_hand = get_pitcher_hand(away_p.get("id"))
- 
+
+                # Extract confirmed batting order from lineups hydration
+                lineups = game.get("lineups", {})
+                for side_key in ("homePlayers", "awayPlayers"):
+                    for pl in lineups.get(side_key, []):
+                        pid   = pl.get("id")
+                        order = pl.get("battingOrder")
+                        if pid and order:
+                            # battingOrder is 100, 200, ... 900 → convert to 1-9
+                            pos = int(order) // 100
+                            if 1 <= pos <= 9:
+                                batting_orders[int(pid)] = pos
+
                 matchup = f"{away}@{home}"
                 display_label = matchup
                 if doubleheader in {"Y", "S"} and game_num:
@@ -1378,13 +1584,14 @@ def fetch_games():
                 }
     except Exception as e:
         print(f"  Schedule error: {e}")
-    print(f"  {len(games)} games found")
-    return games
+    confirmed = sum(1 for v in batting_orders.values() if v)
+    print(f"  {len(games)} games found | {confirmed} confirmed lineup slots")
+    return games, batting_orders
  
 # ── Build predictions ──────────────────────────────────────────
 def build_dashboard():
     odds  = fetch_odds()
-    games = fetch_games()
+    games, batting_orders = fetch_games()
     all_preds = []
  
     def match_odds(name):
@@ -1449,7 +1656,10 @@ def build_dashboard():
                 matchup_score = None
                 if in_model and opp_pitcher != "TBD":
                     try:
-                        model_prob, reasons, matchup_score = predict_with_reasons(bid, opp_pitcher, home, opp_hand, opp_team)
+                        batting_order = batting_orders.get(bid)
+                        model_prob, reasons, matchup_score = predict_with_reasons(
+                            bid, opp_pitcher, home, opp_hand, opp_team, batting_order=batting_order
+                        )
                         players_scored += 1
                     except Exception as e:
                         print(f"  Error {name}: {e}")
