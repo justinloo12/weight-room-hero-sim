@@ -66,6 +66,15 @@ PITCHER_FEATURES = [
     "p_pull_air_pct_allowed_vs_side",
     "p_hr_contact_risk_vs_side",
     "p_lift_damage_risk_vs_side",
+    # Spin & arm angle (release characteristics that drive contact quality)
+    "p_arm_angle",
+    "p_spin_into_barrel_pct",
+    "p_spin_4seam",
+    "p_spin_sinker",
+    "p_spin_slider",
+    "p_spin_change",
+    "p_spin_curve",
+    "p_spin_cutter",
 ]
 
 MATCHUP_FEATURES = [
@@ -83,9 +92,14 @@ MATCHUP_FEATURES = [
     "m_zone_attack_edge",
 ]
 
+# NOTE: Environment features (ballpark, temp, humidity, wind) are intentionally
+# EXCLUDED from the per-PA model. The model predicts environment-neutral talent;
+# environment is applied separately in dashboard.py as a multiplier driven by the
+# game total (which already embeds park + weather + both pitchers + lineups),
+# with a park × weather fallback when no total is available. Keeping environment
+# out of the model avoids double-counting it.
 CONTEXT_FEATURES = [
-    "batter_right", "pitcher_right", "ballpark_code",
-    "is_coors", "temp_f", "humidity", "wind_speed", "wind_dir",
+    "batter_right", "pitcher_right",
 ]
  
 all_features = HITTER_FEATURES + PITCHER_FEATURES + MATCHUP_FEATURES + CONTEXT_FEATURES

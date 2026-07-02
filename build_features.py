@@ -62,7 +62,9 @@ df["game_date"] = pd.to_datetime(df["game_date"])
 df["is_homerun"] = (df["events"] == "home_run").astype(int)
 
 all_pitches = df.copy()
-batted = df[df["launch_speed"].notna() & df["launch_angle"].notna()].copy()
+# type=="X" = ball in play only (excludes foul balls which Statcast also tracks
+# with launch_speed/angle and would otherwise deflate barrel%, exit velo, hard-hit%)
+batted = df[(df["type"] == "X") & df["launch_speed"].notna()].copy()
 
 # ── Barrel flag ───────────────────────────────────────────────
 # Newer Statcast uses launch_speed_angle (6 = barrel), older data has "barrel" column
@@ -433,8 +435,15 @@ pitcher_right_series = (final["p_throws"] == "R").astype(int)
 def col_or_nan(df, col):
     return df[col] if col in df.columns else np.nan
 
+# Build ballpark_code from sorted team list for reproducible inference mapping
+_sorted_teams = sorted(final["home_team"].dropna().unique().tolist())
+_team_to_code = {t: i for i, t in enumerate(_sorted_teams)}
+pd.DataFrame({"home_team": _sorted_teams, "ballpark_code": range(len(_sorted_teams))}).to_csv(
+    "ballpark_codes.csv", index=False
+)
+
 extra_cols = {
-    "ballpark_code": final["home_team"].astype("category").cat.codes,
+    "ballpark_code": final["home_team"].map(_team_to_code).fillna(0).astype(int),
     "is_coors": (final["home_team"] == "COL").astype(int),
     "batter_right": batter_right_series,
     "pitcher_right": pitcher_right_series,

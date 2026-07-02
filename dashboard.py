@@ -17,7 +17,10 @@ except ImportError:
     HAS_SCIPY = False
     def scipy_expit(x): return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
 
-ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "3f2e2d867484541b580084248cdb1d1c")
+ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
+if not ODDS_API_KEY:
+    print("  ODDS_API_KEY not set — live odds/totals disabled (model-only picks). "
+          "Set it via the ODDS_API_KEY env var / GitHub secret.")
  
 print("Loading profiles...")
 hitter  = pd.read_csv("hitter_profiles.csv")
@@ -91,31 +94,27 @@ pitcher_pop = _pop_stats(pitcher, "p_")
 print(f"  Hitter features with stats:  {len(hitter_pop)}")
 print(f"  Pitcher features with stats: {len(pitcher_pop)}")
  
-# ── ML model loading ───────────────────────────────────────────
-# Load the trained pipeline (GradientBoosting + StandardScaler).
-# Falls back gracefully to z-score formula if model not found.
-pipeline    = None
-lr_model    = None
-lr_scaler   = None
-lr_features = None
+ML_MODEL = None
+ML_FEATURES = []
 try:
-    with open("hr_model.pkl", "rb") as _f:
-        pipeline = pickle.load(_f)
-    _feat_df    = pd.read_csv("model_features.csv")
-    lr_features = _feat_df["feature"].tolist()
-    lr_scaler   = pipeline.named_steps["scaler"]
-    lr_model    = pipeline.named_steps["model"]
-    # Check how many features overlap with available profile columns
-    h_overlap = [f for f in lr_features if f in hitter.columns]
-    p_overlap = [f for f in lr_features if f in pitcher.columns]
-    print(f"  ML model loaded — {len(lr_features)} features "
-          f"({len([f for f in lr_features if f.startswith('h_')])} hitter, "
-          f"{len([f for f in lr_features if f.startswith('p_')])} pitcher)")
-    print(f"  Feature overlap: {len(h_overlap)} hitter cols, {len(p_overlap)} pitcher cols found in profiles")
-except FileNotFoundError:
-    print("  WARNING: hr_model.pkl not found — using z-score fallback. Run train_model.py first.")
-except Exception as _e:
-    print(f"  WARNING: Model load failed ({_e}) — using z-score fallback.")
+    ML_MODEL = pickle.load(open("hr_model.pkl", "rb"))
+    ML_FEATURES = pd.read_csv("model_features.csv")["feature"].tolist()
+    print(f"ML model loaded: {len(ML_FEATURES)} features")
+except Exception as _ml_err:
+    print(f"ML model not available ({_ml_err}) — using matchup index formula.")
+
+# Ballpark code mapping — produced by build_features.py for consistent encoding
+_BALLPARK_CODE_MAP: dict[str, int] = {}
+try:
+    _bpc = pd.read_csv("ballpark_codes.csv")
+    _BALLPARK_CODE_MAP = dict(zip(_bpc["home_team"], _bpc["ballpark_code"].astype(int)))
+    print(f"  Ballpark code map loaded: {len(_BALLPARK_CODE_MAP)} teams")
+except Exception:
+    # Fallback: sorted list matching the ALL_TEAMS list in _build_ml_feature_row
+    _ALL_TEAMS_SORTED = sorted(["ATL","ARI","BAL","BOS","CHC","CWS","CIN","CLE","COL","DET",
+                                 "HOU","KC","LAA","LAD","MIA","MIL","MIN","NYM","NYY","OAK",
+                                 "PHI","PIT","SD","SF","SEA","STL","TB","TEX","TOR","WSH"])
+    _BALLPARK_CODE_MAP = {t: i for i, t in enumerate(_ALL_TEAMS_SORTED)}
  
 # ── Ballpark GPS coordinates ───────────────────────────────────
 ballpark_coords = {
@@ -478,12 +477,101 @@ PITCHER_VULN_FEATS = [
     "p_hr_contact_risk_vs_side", "p_lift_damage_risk_vs_side",
 ]
  
-# Ballpark HR rate factors (for ML feature building)
+# Ballpark HR rate factors — full 30 teams (2023-2025 Statcast park factors)
+# 1.0 = league average; >1.0 = HR-friendly; <1.0 = HR-suppressing
 BALLPARK_HR_FACTORS = {
-    "NYY": 1.25, "COL": 1.35, "TEX": 1.15, "HOU": 1.10,
-    "ARI": 1.08, "OAK": 0.92, "PIT": 0.88, "SD":  0.85,
+    "COL": 1.38,  # Coors Field — thin air, highest HR park in baseball
+    "CIN": 1.22,  # Great American Ball Park — launched fly balls carry well
+    "NYY": 1.18,  # Yankee Stadium — short right-field porch
+    "PHI": 1.16,  # Citizens Bank Park — compact, hitter-friendly
+    "TEX": 1.14,  # Globe Life Field — warm air, homer-friendly dimensions
+    "CHC": 1.12,  # Wrigley Field — blowing out = big HR games
+    "ARI": 1.10,  # Chase Field — warm desert air
+    "HOU": 1.07,  # Minute Maid Park — short left-field Crawford Boxes
+    "MIA": 1.06,  # loanDepot park — warm humid air
+    "DET": 1.04,  # Comerica Park — recent dims changes made it more neutral
+    "BAL": 1.03,  # Camden Yards — compact outfield
+    "BOS": 1.02,  # Fenway Park — Green Monster inflates doubles not HRs; slight positive
+    "MIN": 1.01,  # Target Field — neutral-to-slight positive
+    "STL": 1.00,  # Busch Stadium — neutral
+    "NYM": 1.00,  # Citi Field — recently softened but still neutral
+    "ATL": 0.99,  # Truist Park — slight pitcher lean
+    "LAD": 0.99,  # Dodger Stadium — marine layer suppresses slightly
+    "KC":  0.98,  # Kauffman Stadium — large outfield
+    "MIL": 0.97,  # American Family Field — roof helps but dimensions suppress
+    "TOR": 0.97,  # Rogers Centre — turf, indoor; neutral-to-slight suppress
+    "CLE": 0.96,  # Progressive Field — large gaps
+    "LAA": 0.95,  # Angel Stadium — spacious outfield
+    "CWS": 0.94,  # Guaranteed Rate Field — deep corners
+    "WSH": 0.94,  # Nationals Park — spacious straightaway
+    "CHW": 0.94,  # alias for CWS
+    "TB":  0.93,  # Tropicana Field — dome suppresses carry
+    "SF":  0.91,  # Oracle Park — marine layer + deep CF
+    "SEA": 0.90,  # T-Mobile Park — marine layer, pitcher-friendly
+    "PIT": 0.89,  # PNC Park — beautiful but suppresses HRs
+    "OAK": 0.88,  # Oakland Coliseum — massive foul territory + cool air
+    "SD":  0.87,  # Petco Park — marine layer + deep park
 }
- 
+
+# Expected plate appearances per game by batting order position (9-inning average)
+PA_BY_ORDER = {1: 4.67, 2: 4.56, 3: 4.45, 4: 4.34, 5: 4.23,
+               6: 4.12, 7: 4.01, 8: 3.90, 9: 3.79}
+LEAGUE_AVG_PA   = 4.1    # default when batting order unknown
+STARTER_PA_FRAC = 0.67   # starter faces ~67% of batters (~5-6 innings)
+BULLPEN_PA_FRAC = 0.33   # bullpen faces ~33%
+LEAGUE_AVG_PA_AB = 0.0082  # ~0.82% HR rate per PA across all of MLB
+
+# ── Game-total driven environment model ────────────────────────
+# The game total (over/under) is the market's all-in-one estimate of run
+# environment: it already embeds ballpark, weather, both starting pitchers,
+# and the lineups. We use it as the primary environment multiplier; when no
+# total is posted we fall back to ballpark × weather.
+LEAGUE_AVG_TOTAL  = 8.5   # MLB average game total (runs)
+TOTAL_SENSITIVITY = 0.70  # how strongly HR prob scales with run environment
+ENV_MULT_FLOOR    = 0.72
+ENV_MULT_CEIL     = 1.35
+
+# Full team name (as returned by The-Odds-API) → abbreviation used everywhere else
+TEAM_NAME_TO_ABBR = {
+    "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL", "Baltimore Orioles": "BAL",
+    "Boston Red Sox": "BOS", "Chicago Cubs": "CHC", "Chicago White Sox": "CWS",
+    "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE", "Colorado Rockies": "COL",
+    "Detroit Tigers": "DET", "Houston Astros": "HOU", "Kansas City Royals": "KC",
+    "Los Angeles Angels": "LAA", "Los Angeles Dodgers": "LAD", "Miami Marlins": "MIA",
+    "Milwaukee Brewers": "MIL", "Minnesota Twins": "MIN", "New York Mets": "NYM",
+    "New York Yankees": "NYY", "Oakland Athletics": "OAK", "Athletics": "OAK",
+    "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT", "San Diego Padres": "SD",
+    "San Francisco Giants": "SF", "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL",
+    "Tampa Bay Rays": "TB", "Texas Rangers": "TEX", "Toronto Blue Jays": "TOR",
+    "Washington Nationals": "WSH",
+}
+
+def _weather_env_factor(wx):
+    """Park-independent weather multiplier centered at 1.0."""
+    temp = wx.get("temp_f", 72) if wx else 72
+    wind = wx.get("wind_speed", 0) if wx else 0
+    factor = 1.0
+    if   temp >= 90: factor += 0.06
+    elif temp >= 80: factor += 0.03
+    elif temp <= 45: factor -= 0.06
+    elif temp <= 55: factor -= 0.03
+    if   wind >= 15: factor += 0.04
+    elif wind >= 10: factor += 0.02
+    return factor
+
+def environment_multiplier(game_total, home_team, wx):
+    """HR-environment multiplier centered at 1.0 for a league-average game.
+
+    Primary: the market game total (embeds park + weather + pitching + lineups).
+    Fallback: ballpark factor × weather factor when no total is available.
+    """
+    if game_total is not None and game_total > 0:
+        mult = (game_total / LEAGUE_AVG_TOTAL) ** TOTAL_SENSITIVITY
+        return max(ENV_MULT_FLOOR, min(ENV_MULT_CEIL, mult))
+    park = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+    mult = park * _weather_env_factor(wx)
+    return max(ENV_MULT_FLOOR, min(ENV_MULT_CEIL, mult))
+
 def _wind_dir_encode(direction):
     """Cardinal direction string → 0-1 float."""
     wind_map = {
@@ -960,7 +1048,84 @@ def _reason_priority(reason):
             return 3
     return 2
  
-def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None):
+def _build_ml_feature_row(h_row, p_row, batter_right, batter_side_suffix, pitcher_hand, wx, home_team):
+    """Build a feature dict matching the columns used to train hr_model.pkl."""
+    feat = {}
+    if len(h_row) > 0:
+        hr = h_row.iloc[0]
+        for col in hr.index:
+            if col.startswith("h_"):
+                v = _safe_float(hr.get(col))
+                feat[col] = v if v is not None else 0.0
+        # Derived vs-hand features (shrunk toward overall)
+        for hf in [
+            "h_hr_rate_vs_hand", "h_xwoba_vs_hand", "h_barrel_pct_vs_hand",
+            "h_hard_hit_pct_vs_hand", "h_launch_angle_vs_hand", "h_sweet_spot_pct_vs_hand",
+            "h_pull_air_pct_vs_hand", "h_hr_contact_score_vs_hand", "h_lifted_power_score_vs_hand",
+        ]:
+            dummy_pr = p_row.iloc[0] if len(p_row) > 0 else pd.Series(dtype=float)
+            v = _derive_matchup_feature(hf, hr, dummy_pr, batter_side_suffix, pitcher_hand)
+            feat[hf] = v if v is not None else 0.0
+
+    if len(p_row) > 0:
+        pr = p_row.iloc[0]
+        for col in pr.index:
+            if col.startswith("p_"):
+                v = _safe_float(pr.get(col))
+                feat[col] = v if v is not None else 0.0
+        # Derived vs-side features (shrunk toward overall)
+        dummy_hr = h_row.iloc[0] if len(h_row) > 0 else pd.Series(dtype=float)
+        for pf in [
+            "p_hr_rate_allowed_vs_side", "p_barrel_pct_allowed_vs_side", "p_hard_hit_pct_allowed_vs_side",
+            "p_exit_velo_allowed_vs_side", "p_launch_angle_allowed_vs_side",
+            "p_sweet_spot_pct_allowed_vs_side", "p_pull_air_pct_allowed_vs_side",
+            "p_hr_contact_risk_vs_side", "p_lift_damage_risk_vs_side",
+        ]:
+            v = _derive_matchup_feature(pf, dummy_hr, pr, batter_side_suffix, pitcher_hand)
+            feat[pf] = v if v is not None else 0.0
+
+    # Context features
+    feat["batter_right"]  = batter_right
+    feat["pitcher_right"] = 1 if pitcher_hand == "R" else 0
+    feat["is_coors"]      = 1 if home_team == "COL" else 0
+    feat["ballpark_code"] = _BALLPARK_CODE_MAP.get(home_team, 0)
+    feat["temp_f"]        = wx.get("temp_f", 72)
+    feat["humidity"]      = wx.get("humidity", 50)
+    feat["wind_speed"]    = wx.get("wind_speed", 0)
+    feat["wind_dir"]      = _wind_dir_encode(wx.get("wind_dir", "S"))
+
+    # Matchup interaction features
+    if len(h_row) > 0 and len(p_row) > 0:
+        feat["m_sweet_spot_contact_edge"]  = feat.get("h_sweet_spot_pct", 0) * feat.get("p_sweet_spot_pct_allowed", 0)
+        feat["m_zone_attack_edge"]         = feat.get("h_zone_contact_pct", 0) * feat.get("p_in_zone_pct", 0)
+        feat["m_barrel_matchup_score"]     = feat.get("h_barrel_pct", 0) * feat.get("p_barrel_pct_allowed", 0)
+        feat["m_lift_matchup_score"]       = (feat.get("h_sweet_spot_pct", 0) * feat.get("p_sweet_spot_pct_allowed", 0)
+                                              + feat.get("h_pull_air_pct", 0) * feat.get("p_pull_air_pct_allowed", 0)) / 2.0
+        feat["m_hr_contact_matchup"]       = feat.get("h_hr_contact_score", 0) * feat.get("p_hr_contact_risk", 0)
+        feat["m_lifted_power_matchup"]     = feat.get("h_lifted_power_score", 0) * feat.get("p_lift_damage_risk", 0)
+        feat["m_handed_hr_matchup"]        = feat.get("h_hr_rate_vs_hand", 0) * feat.get("p_hr_rate_allowed_vs_side", 0)
+        feat["m_handed_contact_matchup"]   = feat.get("h_hr_contact_score_vs_hand", 0) * feat.get("p_hr_contact_risk_vs_side", 0)
+        feat["m_handed_lift_matchup"]      = feat.get("h_lifted_power_score_vs_hand", 0) * feat.get("p_lift_damage_risk_vs_side", 0)
+        # Pitch-type exposure matchups
+        pitch_hr, pitch_xwoba, pitch_ev = [], [], []
+        for label in ["4seam", "sinker", "slider", "change", "curve", "cutter"]:
+            usage_col = f"p_{label}_usage_{'rhh' if batter_right else 'lhh'}"
+            usage = feat.get(usage_col, 0) or 0.0
+            hr_v  = feat.get(f"h_hr_vs_{label}", 0) or 0.0
+            xw_v  = feat.get(f"h_xwoba_vs_{label}", 0) or 0.0
+            h_ev  = feat.get(f"h_ev_vs_{label}", 0) or 0.0
+            p_ev  = feat.get(f"p_ev_allowed_{label}", 0) or 0.0
+            pitch_hr.append(hr_v * usage)
+            pitch_xwoba.append(xw_v * usage)
+            pitch_ev.append((h_ev - p_ev) * usage)
+        feat["m_pitch_hr_matchup"]      = sum(pitch_hr)
+        feat["m_pitch_contact_matchup"] = sum(pitch_xwoba)
+        feat["m_pitch_ev_matchup"]      = sum(pitch_ev)
+
+    return feat
+
+
+def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", opp_team=None, batting_order=None, game_total=None):
     h_row = hitter[hitter["batter"] == batter_id]
     p_row = _resolve_pitcher_row(pitcher_name, allow_fuzzy=False)
 
@@ -1010,308 +1175,122 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
     if   wind >= 15: wx_adj += 0.18
     elif wind >= 10: wx_adj += 0.10
  
-    # ── Probability: ML model (preferred) or z-score fallback ─
-    if lr_model is not None and lr_features is not None and len(h_row) > 0:
-        # --- Build feature vector for ML model ---
-        feature_vals = {}
-        for feat in lr_features:
-            feature_vals[feat] = np.nan
- 
-        if len(h_row) > 0:
-            hr = h_row.iloc[0]
-            for feat in lr_features:
-                if feat in hitter.columns and feat.startswith("h_"):
-                    if _pitch_label_from_feat(feat):
-                        v = _shrunk_pitch_value(hr, feat)
-                    else:
-                        v = hr.get(feat)
-                    if v is not None and not (isinstance(v, float) and np.isnan(v)):
-                        feature_vals[feat] = float(v)
-                elif feat.startswith("h_"):
-                    derived = _derive_matchup_feature(feat, hr, pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-                    if derived is not None:
-                        feature_vals[feat] = derived
-            # Platoon-matched HR rate
-            if "platoon_matched_hr_rate" in lr_features:
-                feature_vals["platoon_matched_hr_rate"] = float(
-                    hr.get("h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp", np.nan)
-                )
+    # ── Matchup index formula (0–100) ─────────────────────────
+    def norm(val, lo, hi):
+        return min(100.0, max(0.0, (val - lo) / (hi - lo) * 100.0))
 
-        if pitcher_found:
-            pr = p_row.iloc[0]
-            for feat in lr_features:
-                if feat in pitcher.columns and feat.startswith("p_"):
-                    v = pr.get(feat)
-                    if v is not None and not (isinstance(v, float) and np.isnan(v)):
-                        feature_vals[feat] = float(v)
-                elif feat not in feature_vals or pd.isna(feature_vals[feat]):
-                    derived = _derive_matchup_feature(feat, hr, pr, batter_side_suffix, pitcher_hand)
-                    if derived is not None:
-                        feature_vals[feat] = derived
+    # ── Batter score ───────────────────────────────────────────
+    if len(h_row) > 0:
+        hr_prof = h_row.iloc[0]
+        n_batted = float(hr_prof.get("h_n_batted") or 50)
 
-        # Context features
-        feature_vals["batter_right"]      = batter_right
-        feature_vals["pitcher_right"]     = 1 if pitcher_hand == "R" else 0
-        feature_vals["is_coors"]          = 1 if home_team == "COL" else 0
-        feature_vals["ballpark_hr_factor"]= BALLPARK_HR_FACTORS.get(home_team, 1.0)
-        feature_vals["temp_f"]            = wx.get("temp_f", 72)
-        feature_vals["humidity"]          = wx.get("humidity", 50)
-        feature_vals["wind_speed"]        = wx.get("wind_speed", 0)
-        feature_vals["wind_dir_encoded"]  = _wind_dir_encode(wx.get("wind_dir"))
-        feature_vals["ballpark_code"]     = 0   # not used — placeholder
-        feature_vals["wind_dir"]          = wx.get("wind_dir", 0)
-        feature_vals["temp_f"]            = wx.get("temp_f", 72)
-        feature_vals["humidity"]          = wx.get("humidity", 50)
- 
-        # Build array in feature order, fill NaN with 0
-        X_row = np.array([feature_vals.get(f, 0) if not (isinstance(feature_vals.get(f, 0), float) and np.isnan(feature_vals.get(f, 0))) else 0
-                          for f in lr_features], dtype=float).reshape(1, -1)
- 
-        try:
-            prob_raw = pipeline.predict_proba(X_row)[0, 1]  # use full pipeline
-        except Exception:
-            X_scaled = lr_scaler.transform(X_row)
-            prob_raw = lr_model.predict_proba(X_scaled)[0, 1]
- 
-        # ── Sample-size shrinkage (regress small samples toward league avg) ──
-        # League avg per-AB HR rate ≈ 3.4%
-        # Default to 50 ABs when column is missing — conservative.
-        # Need ~260+ ABs for near-full trust. Smaller samples get pulled harder.
-        LEAGUE_AB_RATE = 0.034
-        hr = h_row.iloc[0]
-        n_batted = float(hr["h_n_batted"]) if "h_n_batted" in hitter.columns and not pd.isna(hr.get("h_n_batted")) else 50
-        weight   = min(0.90, max(0.03, (n_batted - 10) / 260.0))
-        prob_raw = weight * prob_raw + (1 - weight) * LEAGUE_AB_RATE
+        barrel    = _safe_float(hr_prof.get("h_barrel_pct"))   or 0.0
+        hard_hit  = _safe_float(hr_prof.get("h_hard_hit_pct")) or 0.0
+        exit_velo = _safe_float(hr_prof.get("h_exit_velo"))    or 88.0
+        base_rate = _safe_float(hr_prof.get("h_hr_rate"))      or 0.034
 
-        # ── Platoon sanity adjustment ──────────────────────────
-        matched_split = _safe_float(hr.get("h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp"))
-        off_split = _safe_float(hr.get("h_hr_vs_lhp" if pitcher_hand == "R" else "h_hr_vs_rhp"))
-        base_rate = _safe_float(hr.get("h_hr_rate")) or LEAGUE_AB_RATE
-        if matched_split is not None:
-            platoon_sample = float(hr.get("h_n_batted", 0) or 0)
-            platoon_weight = min(1.0, max(0.0, (platoon_sample - 60.0) / 220.0))
-            matched_shrunk = platoon_weight * matched_split + (1.0 - platoon_weight) * base_rate
-            if matched_shrunk < base_rate * 0.65:
-                prob_raw *= 0.74
-            elif matched_shrunk < base_rate * 0.78:
-                prob_raw *= 0.82
-            elif matched_shrunk < base_rate * 0.90:
-                prob_raw *= 0.90
-            elif matched_shrunk > base_rate * 1.18:
-                prob_raw *= 1.05
-        if matched_split is not None and off_split is not None and pitcher_hand in {"R", "L"}:
-            if matched_split < off_split * 0.65:
-                prob_raw *= 0.76
-            elif matched_split < off_split * 0.80:
-                prob_raw *= 0.84
-            elif matched_split < off_split * 0.92:
-                prob_raw *= 0.92
- 
-        # ── Z-score signal multiplier ──────────────────────────
-        # Clamp combined_z to ±2.0 so one freak small-sample stat
-        # (e.g. 0.830 xwOBA on 3 fastballs seen) can't explode the output.
-        h_zs_ml = [z for f, (z, v, t) in zscores.items() if t == "hitter"]
-        p_zs_ml = [z for f, (z, v, t) in zscores.items() if t == "pitcher"]
-        h_top_ml   = sorted(h_zs_ml, reverse=True)[:5]
-        h_score_ml = float(np.mean(h_top_ml)) if h_top_ml else 0.0
-        p_score_ml = float(np.mean(p_zs_ml))  if p_zs_ml  else 0.0
-        combined_z = h_score_ml * 0.50 + p_score_ml * 0.50 + wx_adj
-        combined_z = max(-1.6, min(1.6, combined_z))   # more conservative boost/suppression
-        prob_raw   = prob_raw * math.exp(combined_z * 0.20)
- 
-        # ── Pitcher + bullpen blended adjustment ───────────────
-        # Starters pitch ~60% of the game, bullpen covers ~40%.
-        # Blend: 60% starter quality + 40% team bullpen quality.
-        if pitcher_found:
-            p_hr_allowed = float(_shrunk_pitcher_value(p_row.iloc[0], "p_hr_rate_allowed") or LEAGUE_AB_RATE)
-            if   p_hr_allowed < 0.015: starter_mult = 0.70
-            elif p_hr_allowed < 0.022: starter_mult = 0.85
-            elif p_hr_allowed > 0.045: starter_mult = 1.18
-            elif p_hr_allowed > 0.035: starter_mult = 1.10
-            else:                      starter_mult = 1.00
-        else:
-            starter_mult = 0.95  # unknown starter: slight penalty
+        split_col    = "h_hr_vs_rhp" if pitcher_hand == "R" else "h_hr_vs_lhp"
+        platoon_rate = _safe_float(hr_prof.get(split_col)) or base_rate
+        # Shrink platoon rate toward overall rate for small samples
+        platoon_wt   = min(1.0, max(0.0, (n_batted - 60) / 200.0))
+        platoon_shrunk = platoon_wt * platoon_rate + (1 - platoon_wt) * base_rate
 
-        bullpen_mult = _bullpen_multiplier(opp_team or home_team)
-
-        # ── Blend ML output with a baseball-calibrated heuristic ──────
-        # The ML ranking is useful, but calibrated raw HR probabilities can get
-        # too conservative for established sluggers. Blend it with a simpler
-        # baseball prior built from:
-        #   1. hitter baseline HR rate
-        #   2. handedness split
-        #   3. pitcher weakness to that side
-        #   4. core power/contact quality
-        matched_shrunk = base_rate
-        if matched_split is not None:
-            platoon_sample = float(hr.get(f"h_n_batted_vs_{'rhp' if pitcher_hand == 'R' else 'lhp'}", 0) or 0)
-            hand_weight = min(1.0, max(0.0, (platoon_sample - 10.0) / 90.0))
-            matched_shrunk = hand_weight * matched_split + (1.0 - hand_weight) * base_rate
-
-        side_pitcher_hr = None
-        if pitcher_found:
-            pr = p_row.iloc[0]
-            side_pitcher_hr = _derive_matchup_feature("p_hr_rate_allowed_vs_side", hr, pr, batter_side_suffix, pitcher_hand)
-        if side_pitcher_hr is None:
-            side_pitcher_hr = p_hr_allowed if pitcher_found else LEAGUE_AB_RATE
-
-        contact_score = _safe_float(hr.get("h_hr_contact_score")) or 0.0
-        hand_contact = _derive_matchup_feature("h_hr_contact_score_vs_hand", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-        if hand_contact is None:
-            hand_contact = contact_score
-        pitch_hr_matchup = _derive_matchup_feature("m_pitch_hr_matchup", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-        pitch_contact_matchup = _derive_matchup_feature("m_pitch_contact_matchup", hr, pr if pitcher_found else pd.Series(dtype=float), batter_side_suffix, pitcher_hand)
-
-        barrel     = _safe_float(hr.get("h_barrel_pct"))     or 0.0
-        exit_velo  = _safe_float(hr.get("h_exit_velo"))      or 0.0
-        hard_hit   = _safe_float(hr.get("h_hard_hit_pct"))   or 0.0
-
-        power_mult = 0.92
-
-        # Barrel rate (0.73 corr) — primary
-        if barrel >= 0.18:   power_mult += 0.28
-        elif barrel >= 0.14: power_mult += 0.20
-        elif barrel >= 0.10: power_mult += 0.12
-        elif barrel >= 0.07: power_mult += 0.05
-        elif barrel < 0.04:  power_mult -= 0.10
-
-        # Hard-hit rate (0.39 corr) — secondary
-        if hard_hit >= 0.42:   power_mult += 0.10
-        elif hard_hit >= 0.36: power_mult += 0.06
-        elif hard_hit >= 0.30: power_mult += 0.02
-        elif hard_hit < 0.25:  power_mult -= 0.05
-
-        # Exit velo (0.36 corr) — tertiary, half the weight of barrel
-        if exit_velo >= 92.0:   power_mult += 0.07
-        elif exit_velo >= 90.0: power_mult += 0.04
-        elif exit_velo >= 88.0: power_mult += 0.01
-        elif exit_velo < 86.0:  power_mult -= 0.05
-
-        if hand_contact >= contact_score * 1.08:  power_mult += 0.06
-        elif hand_contact <= contact_score * 0.90: power_mult -= 0.05
-        if pitch_hr_matchup is not None and pitch_hr_matchup >= 0.010: power_mult += 0.05
-        if pitch_contact_matchup is not None and pitch_contact_matchup >= 0.090: power_mult += 0.04
-
-        # 40% hitter: batter HR ability (overall + platoon blend) scaled by contact quality
-        batter_component = (base_rate * 0.60 + matched_shrunk * 0.40) * power_mult
-
-        # 40% pitcher: side-specific HR rate allowed, scaled by starter tier
-        pitcher_component = side_pitcher_hr * starter_mult
-
-        # 20% context: league baseline adjusted for ballpark, weather, and bullpen
-        ballpark_factor = BALLPARK_HR_FACTORS.get(home_team, 1.0)
-        context_component = LEAGUE_AB_RATE * bullpen_mult * ballpark_factor
-
-        heuristic_ab = (
-            batter_component  * 0.40
-            + pitcher_component * 0.40
-            + context_component * 0.20
+        batter_score = (
+            norm(barrel,         0.03, 0.20) * 0.35
+          + norm(hard_hit,       0.22, 0.52) * 0.25
+          + norm(exit_velo,      83.0, 95.0) * 0.20
+          + norm(platoon_shrunk, 0.005, 0.09) * 0.20
         )
-        heuristic_ab = max(0.006, min(0.09, heuristic_ab))
-
-        # Blend the model with the baseball prior. Established hitters get more
-        # weight on the prior so stars don't collapse to the floor from an
-        # over-conservative calibrated model.
-        established = min(1.0, max(0.0, (n_batted - 80.0) / 220.0))
-        heuristic_weight = 0.30 + 0.20 * established
-        prob_raw = (1.0 - heuristic_weight) * prob_raw + heuristic_weight * heuristic_ab
-
-        # ── Reality check for fringe bats ─────────────────────
-        # Do not let thin-contact or middling-power bats leap into elite HR
-        # territory just because a split/matchup line looks favorable.
-        barrel = _safe_float(hr.get("h_barrel_pct")) or 0.0
-        exit_velo = _safe_float(hr.get("h_exit_velo")) or 0.0
-        hard_hit = _safe_float(hr.get("h_hard_hit_pct")) or 0.0
-        pull_air = _safe_float(hr.get("h_pull_air_pct")) or 0.0
-        sweet_spot = _safe_float(hr.get("h_sweet_spot_pct")) or 0.0
-
-        if barrel < 0.04 and exit_velo < 84.0 and hard_hit < 0.28:
-            prob_raw = min(prob_raw, 0.022)
-        elif barrel < 0.06 and exit_velo < 85.0 and hard_hit < 0.31:
-            prob_raw = min(prob_raw, 0.028)
-        elif barrel < 0.08 and exit_velo < 86.0 and hard_hit < 0.34 and pull_air < 0.18:
-            prob_raw = min(prob_raw, 0.036)
-        elif barrel < 0.10 and exit_velo < 87.0 and hard_hit < 0.36 and sweet_spot < 0.32:
-            prob_raw = min(prob_raw, 0.050)
-
-        # Very small overall sample should never sit at the very top of the board.
-        if n_batted < 140 and (barrel < 0.08 or exit_velo < 86.0):
-            prob_raw = min(prob_raw, 0.040)
-        elif n_batted < 220 and barrel < 0.07 and exit_velo < 85.5:
-            prob_raw = min(prob_raw, 0.045)
-
-        # Established sluggers should not collapse unrealistically low when both
-        # the baseline power traits and sample size are strong.
-        elite_power = (
-            n_batted >= 260
-            and barrel >= 0.10
-            and exit_velo >= 86.0
-            and hard_hit >= 0.35
-        )
-        upper_tier_power = (
-            n_batted >= 220
-            and (
-                (barrel >= 0.08 and exit_velo >= 86.5 and hard_hit >= 0.34)
-                or contact_score >= 0.205
-            )
-        )
-        if elite_power:
-            prob_raw = max(prob_raw, 0.045)
-            if matched_shrunk >= base_rate * 1.08 or hand_contact >= contact_score * 1.03:
-                prob_raw = max(prob_raw, 0.055)
-        elif upper_tier_power:
-            prob_raw = max(prob_raw, 0.038)
-            if matched_shrunk >= base_rate:
-                prob_raw = max(prob_raw, 0.044)
-
-        # ── Hard cap by sample size (applied AFTER all multipliers) ────
-        # Prevents small-sample flukes from surviving the z-score boost.
-        if   n_batted < 100: prob_raw = min(prob_raw, 0.032)  # → ~11% per-game max
-        elif n_batted < 150: prob_raw = min(prob_raw, 0.045)  # → ~15% per-game max
-        elif n_batted < 220: prob_raw = min(prob_raw, 0.060)
- 
-        # ── Convert score to displayed HR probability ─────────
-        # Keep the ML model for ranking, but use a baseball-calibrated display
-        # curve so obvious sluggers do not look absurdly underpriced.
-        n_pa = 3.9
-        prob_raw_clamped = max(0.001, min(0.12, prob_raw))
-        heuristic_clamped = max(0.004, min(0.09, heuristic_ab))
-
-        # Blend ML model with baseball prior. z-score signal is already baked
-        # into prob_raw so we do not apply it again here.
-        display_ab = 0.45 * prob_raw_clamped + 0.55 * heuristic_clamped
-
-        # Modest extra lift for elite/upper-tier sluggers.
-        if elite_power:
-            display_ab *= 1.07
-        elif upper_tier_power:
-            display_ab *= 1.04
-
-        # Preserve the fringe-bat caps but keep a stronger floor for real sluggers.
-        if elite_power or upper_tier_power:
-            display_ab = max(display_ab, heuristic_clamped * (0.92 if upper_tier_power else 0.98))
-
-        display_ab = max(0.006, min(0.13, display_ab))
-        prob = (1.0 - (1.0 - display_ab) ** n_pa) * 100
-        if prob > 22.0:
-            prob = 22.0 + (prob - 22.0) * 0.50
-        prob = max(3.0, min(30.0, prob))
- 
     else:
-        # --- Z-score fallback (no trained model) ---
-        # Base rate = 11% per game (league avg ~3.4% per-AB × 3.5 PA)
-        # Slope = 0.80 gives:  z=0→11%  z=1→19%  z=2→29%  z=3→40%→cap30%
-        h_zs = [z for f, (z, v, t) in zscores.items() if t == "hitter"]
-        p_zs = [z for f, (z, v, t) in zscores.items() if t == "pitcher"]
-        h_top    = sorted(h_zs, reverse=True)[:5]
-        h_score  = float(np.mean(h_top)) if h_top else 0.0
-        p_score  = float(np.mean(p_zs))  if p_zs  else 0.0
-        total_z  = h_score * 0.70 + p_score * 0.30 + wx_adj
-        # BASE_RATE 0.11 → ~10% per-game avg  SLOPE 0.45 → star(z=1.5)≈16%
-        BASE_RATE = 0.11
-        SLOPE     = 0.45
-        log_odds  = math.log(BASE_RATE / (1.0 - BASE_RATE)) + total_z * SLOPE
-        prob      = min(25.0, 100.0 / (1.0 + math.exp(-log_odds)))
+        batter_score = 50.0
+        n_batted = 0
+        base_rate = 0.034
+        hr_prof = None
+
+    # ── Pitcher score ──────────────────────────────────────────
+    if pitcher_found:
+        pr_prof = p_row.iloc[0]
+        dummy_hr = hr_prof if hr_prof is not None else pd.Series(dtype=float)
+        side_hr = _derive_matchup_feature(
+            "p_hr_rate_allowed_vs_side", dummy_hr, pr_prof, batter_side_suffix, pitcher_hand
+        )
+        hr_allowed       = side_hr if side_hr is not None else (_safe_float(pr_prof.get("p_hr_rate_allowed")) or 0.034)
+        barrel_allowed   = _safe_float(pr_prof.get("p_barrel_pct_allowed"))   or 0.06
+        hard_hit_allowed = _safe_float(pr_prof.get("p_hard_hit_pct_allowed")) or 0.35
+
+        pitcher_score = (
+            norm(hr_allowed,       0.010, 0.055) * 0.50
+          + norm(barrel_allowed,   0.030, 0.130) * 0.30
+          + norm(hard_hit_allowed, 0.270, 0.480) * 0.20
+        )
+    else:
+        pitcher_score = 50.0
+
+    # ── Context score ──────────────────────────────────────────
+    temp = wx.get("temp_f", 72)
+    wind = wx.get("wind_speed", 0)
+    ballpark_factor = BALLPARK_HR_FACTORS.get(home_team, 1.0)
+
+    context_score = (
+        norm(ballpark_factor, 0.86, 1.40) * 0.50
+      + norm(temp,  40.0, 104.0)          * 0.30
+      + norm(wind,   0.0,  20.0)          * 0.20
+    )
+
+    # ── Final matchup score (0-100 display index) ─────────────
+    matchup_score = (
+        batter_score  * 0.40
+      + pitcher_score * 0.40
+      + context_score * 0.20
+    )
+    matchup_score = round(matchup_score, 1)
+
+    # ── Per-game probability ───────────────────────────────────
+    # Try ML model first (calibrated GBM trained on per-PA data).
+    # Convert per-AB probability to per-game using expected PA from batting order.
+    # Blend starter and bullpen: starter faces ~67% of a batter's PAs on average.
+    opp = opp_team or home_team
+    bullpen_ab_rate = TEAM_BULLPEN_HR_RATE.get(opp, LEAGUE_AVG_BULLPEN)
+    expected_pa = PA_BY_ORDER.get(batting_order, LEAGUE_AVG_PA)
+
+    # Environment multiplier — game total (preferred) or park × weather fallback.
+    # The ML model predicts environment-neutral talent; environment is applied here.
+    env_mult = environment_multiplier(game_total, home_team, wx)
+
+    prob = None
+    if ML_MODEL is not None and len(ML_FEATURES) > 0 and len(h_row) > 0:
+        try:
+            feat_row = _build_ml_feature_row(
+                h_row, p_row, batter_right, batter_side_suffix, pitcher_hand, wx, home_team
+            )
+            X = pd.DataFrame([feat_row])
+            for f in ML_FEATURES:
+                if f not in X.columns:
+                    X[f] = 0.0
+            X = X[ML_FEATURES].fillna(0)
+            prob_ab = float(ML_MODEL.predict_proba(X)[0, 1])
+
+            # Adjust bullpen rate by batter quality relative to league avg
+            batter_quality = prob_ab / LEAGUE_AVG_PA_AB if LEAGUE_AVG_PA_AB > 0 else 1.0
+            bullpen_pa_ab  = bullpen_ab_rate * batter_quality
+
+            starter_pa = expected_pa * STARTER_PA_FRAC
+            bullpen_pa = expected_pa * BULLPEN_PA_FRAC
+
+            # P(no HR in game) = P(no HR off starter)^starter_pa × P(no HR off bullpen)^bullpen_pa
+            prob_no_hr = (1 - prob_ab) ** starter_pa * (1 - bullpen_pa_ab) ** bullpen_pa
+            prob_neutral = (1 - prob_no_hr) * 100
+            prob = round(prob_neutral * env_mult, 2)
+        except Exception:
+            pass
+
+    if prob is None:
+        # Fallback: talent-only base (batter + pitcher) × environment multiplier.
+        # Uses batter/pitcher scores only so environment isn't double-counted.
+        talent = batter_score * 0.5 + pitcher_score * 0.5  # 0-100
+        prob = round((3.0 + (talent / 100.0) * 22.0) * env_mult, 2)
+
+    prob = max(0.3, min(45.0, prob))
  
     # ── Pick reasons: top positive z-scores + worst negatives ──
     # Positive: good stats / HR-prone pitcher → show top 2-3
@@ -1405,12 +1384,23 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         reasons.append(f"⚡ {opp} bullpen gives up home runs at one of the highest rates in MLB")
     elif bp_rate >= 0.038:
         reasons.append(f"{opp} bullpen is HR-prone — good chance of seeing relievers late")
- 
+
+    # ── Game total (run environment) ────────────────────────────
+    if game_total is not None and game_total > 0:
+        if game_total >= 9.5:
+            reasons.append(f"⚡ High game total ({game_total}) — books expect a big offensive game")
+        elif game_total >= 9.0:
+            reasons.append(f"Game total {game_total} — above-average run environment")
+        elif game_total <= 7.0:
+            reasons.append(f"❄️ Low game total ({game_total}) — books expect a pitcher's duel")
+        elif game_total <= 7.5:
+            reasons.append(f"Game total {game_total} — below-average run environment")
+
     if not reasons:
         reasons = ["Limited historical data for this matchup"]
  
-    return round(prob, 2), reasons
- 
+    return round(prob, 2), reasons, matchup_score
+
 # ── Roster ─────────────────────────────────────────────────────
 def get_roster(team_id):
     try:
@@ -1428,6 +1418,50 @@ def get_roster(team_id):
         return []
  
 # ── Odds ───────────────────────────────────────────────────────
+def fetch_game_totals():
+    """Fetch game totals (over/under) for ALL games in ONE bulk request.
+
+    The totals market is a 'featured' market available on the bulk /odds
+    endpoint, so a single call (1 API credit) covers every game — far cheaper
+    than requesting totals per-event alongside player props. Returns
+    {team_abbr: consensus_total} for both home and away teams.
+    """
+    totals = {}
+    if not ODDS_API_KEY:
+        return totals
+    try:
+        resp = requests.get(
+            f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
+            f"?apiKey={ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american",
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            print(f"  Totals fetch error: {resp.status_code}")
+            return totals
+        print(f"  Totals: 1 bulk request | remaining {resp.headers.get('x-requests-remaining','?')}")
+        for ev in resp.json():
+            home = TEAM_NAME_TO_ABBR.get(ev.get("home_team", ""))
+            away = TEAM_NAME_TO_ABBR.get(ev.get("away_team", ""))
+            pts = []
+            for bm in ev.get("bookmakers", []):
+                for market in bm.get("markets", []):
+                    if market.get("key") != "totals":
+                        continue
+                    for outcome in market.get("outcomes", []):
+                        if str(outcome.get("name", "")).strip().lower() == "over":
+                            try:
+                                pts.append(float(outcome.get("point")))
+                            except (TypeError, ValueError):
+                                pass
+            if pts:
+                avg = round(sum(pts) / len(pts), 1)
+                if home: totals[home] = avg
+                if away: totals[away] = avg
+    except Exception as e:
+        print(f"  Totals error: {e}")
+    return totals
+
+
 def fetch_odds():
     """Fetch live 0.5+ HR props, preferring DraftKings when available.
 
@@ -1441,6 +1475,7 @@ def fetch_odds():
     print("Fetching HR odds from live sportsbooks...")
     now_utc = datetime.now(timezone.utc)
     raw_all  = {}   # {ckey: {book_key: {"player", "book_odds", "book_implied", "book"}}}
+    game_totals = fetch_game_totals()  # one bulk call for all game over/unders
     seen_books = set()
     books_with_hr_market = set()
     draftkings_seen = False
@@ -1452,11 +1487,11 @@ def fetch_odds():
         )
         if ev_resp.status_code != 200:
             print(f"  Events error: {ev_resp.status_code}")
-            return {}
- 
+            return {}, game_totals
+
         events = ev_resp.json()
         if not isinstance(events, list):
-            return {}
+            return {}, game_totals
  
         # ── Filter to pregame events only ─────────────────────
         pregame = []
@@ -1502,38 +1537,58 @@ def fetch_odds():
                     books_with_hr_market.add(book_key)
                     if book_key == "draftkings":
                         draftkings_seen = True
+                    # Collect both Yes and No prices per player per book for de-vig
+                    _yes_prices = {}  # ckey -> (odds_val, player_name)
+                    _no_prices  = {}  # ckey -> odds_val
                     for outcome in market.get("outcomes", []):
-                        outcome_name = str(outcome.get("name","")).strip().lower()
                         point = outcome.get("point")
-                        if outcome_name in ["no", "under"]:
-                            continue
-                        if outcome_name not in ["yes", "over"] and outcome.get("description"):
-                            continue
                         if point not in (None, 0.5):
                             continue
-                        player = outcome.get("description") or outcome.get("name","")
+                        outcome_name = str(outcome.get("name","")).strip().lower()
                         price  = outcome.get("price")
-                        if not player or price is None:
+                        if price is None:
                             continue
                         try:
                             odds_val = int(float(price))
-                            implied  = american_to_implied(odds_val) * 100
-                            # Valid HR prop range: 2%–38% implied
-                            if implied < 2.0 or implied > 38.0:
-                                continue
-                            ckey = _name_key(player)
-                            if ckey not in raw_all:
-                                raw_all[ckey] = {}
-                            existing = raw_all[ckey].get(book_key)
-                            if not existing or abs((point or 0.5) - 0.5) < 1e-9:
-                                raw_all[ckey][book_key] = {
-                                    "player":       player.strip(),
-                                    "book_odds":    odds_val,
-                                    "book_implied": round(implied, 2),
-                                    "book":         book_key,
-                                }
-                        except:
-                            pass
+                        except (TypeError, ValueError):
+                            continue
+                        if outcome_name in ["yes", "over"]:
+                            player = (outcome.get("description") or "").strip()
+                            if player:
+                                _yes_prices[_name_key(player)] = (odds_val, player)
+                        elif outcome_name in ["no", "under"]:
+                            player = (outcome.get("description") or "").strip()
+                            if player:
+                                _no_prices[_name_key(player)] = odds_val
+                        else:
+                            # Some books put player name directly in "name" field
+                            player = str(outcome.get("name","")).strip()
+                            if player and outcome.get("description"):
+                                pass  # ignore non-yes/no named outcomes with description
+                            elif player:
+                                _yes_prices[_name_key(player)] = (odds_val, player)
+
+                    for ckey, (odds_val, player) in _yes_prices.items():
+                        yes_implied = american_to_implied(odds_val)
+                        if yes_implied < 0.02 or yes_implied > 0.38:
+                            continue
+                        # De-vig: use both sides if "no" price is available
+                        if ckey in _no_prices:
+                            no_implied = american_to_implied(_no_prices[ckey])
+                            fair_implied = yes_implied / (yes_implied + no_implied)
+                        else:
+                            # Approximate de-vig: HR props carry ~10-15% hold on Yes side
+                            fair_implied = yes_implied * 0.88
+                        if ckey not in raw_all:
+                            raw_all[ckey] = {}
+                        existing = raw_all[ckey].get(book_key)
+                        if not existing:
+                            raw_all[ckey][book_key] = {
+                                "player":       player,
+                                "book_odds":    odds_val,
+                                "book_implied": round(fair_implied * 100, 2),
+                                "book":         book_key,
+                            }
     except Exception as e:
         print(f"  Odds error: {e}")
 
@@ -1561,8 +1616,10 @@ def fetch_odds():
         print("  No batter_home_runs market returned by the API for today's MLB events.")
     else:
         print("  No sportsbook data returned for today's MLB events.")
-    return results
- 
+    if game_totals:
+        print(f"  Game totals captured for {len(game_totals)//2} games")
+    return results, game_totals
+
 # ── Schedule + pitcher hand ────────────────────────────────────
 pitcher_hand_cache = {}
 def get_pitcher_hand(pitcher_id):
@@ -1585,10 +1642,12 @@ def fetch_games():
     today = datetime.now(ET).strftime("%Y-%m-%d")
     print(f"Fetching games for {today}...")
     games = {}
+    # batting_orders: {batter_id -> batting_order_position (1-9)}
+    batting_orders: dict[int, int] = {}
     try:
         sched = requests.get(
             f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={today}"
-            f"&hydrate=probablePitcher,team", timeout=15
+            f"&hydrate=probablePitcher,team,lineups", timeout=15
         ).json()
         for de in sched.get("dates", []):
             for game in de.get("games", []):
@@ -1609,7 +1668,19 @@ def fetch_games():
  
                 home_p_hand = get_pitcher_hand(home_p.get("id"))
                 away_p_hand = get_pitcher_hand(away_p.get("id"))
- 
+
+                # Extract confirmed batting order from lineups hydration
+                lineups = game.get("lineups", {})
+                for side_key in ("homePlayers", "awayPlayers"):
+                    for pl in lineups.get(side_key, []):
+                        pid   = pl.get("id")
+                        order = pl.get("battingOrder")
+                        if pid and order:
+                            # battingOrder is 100, 200, ... 900 → convert to 1-9
+                            pos = int(order) // 100
+                            if 1 <= pos <= 9:
+                                batting_orders[int(pid)] = pos
+
                 matchup = f"{away}@{home}"
                 display_label = matchup
                 if doubleheader in {"Y", "S"} and game_num:
@@ -1631,13 +1702,14 @@ def fetch_games():
                 }
     except Exception as e:
         print(f"  Schedule error: {e}")
-    print(f"  {len(games)} games found")
-    return games
+    confirmed = sum(1 for v in batting_orders.values() if v)
+    print(f"  {len(games)} games found | {confirmed} confirmed lineup slots")
+    return games, batting_orders
  
 # ── Build predictions ──────────────────────────────────────────
 def build_dashboard():
-    odds  = fetch_odds()
-    games = fetch_games()
+    odds, game_totals = fetch_odds()
+    games, batting_orders = fetch_games()
     all_preds = []
  
     def match_odds(name):
@@ -1699,9 +1771,15 @@ def build_dashboard():
                 model_prob = None
                 reasons    = []
  
+                matchup_score = None
                 if in_model and opp_pitcher != "TBD":
                     try:
-                        model_prob, reasons = predict_with_reasons(bid, opp_pitcher, home, opp_hand, opp_team)
+                        batting_order = batting_orders.get(bid)
+                        game_total = game_totals.get(home)
+                        model_prob, reasons, matchup_score = predict_with_reasons(
+                            bid, opp_pitcher, home, opp_hand, opp_team,
+                            batting_order=batting_order, game_total=game_total
+                        )
                         players_scored += 1
                     except Exception as e:
                         print(f"  Error {name}: {e}")
@@ -1751,6 +1829,9 @@ def build_dashboard():
                     "book_name":    book_name,
                     "n_books":      n_books,
                     "model_prob":   model_prob,
+                    "matchup_score": matchup_score,
+                    "game_total":   game_totals.get(home),
+                    "batting_order": batting_orders.get(bid),
                     "edge":         edge,
                     "value":        value,
                     "reasons":      reasons,
@@ -1781,6 +1862,81 @@ def build_dashboard():
     model_count = sum(1 for r in all_preds if r["model_prob"] is not None)
     print(f"  Model: {model_count} | Value picks: {value_count}")
     return all_preds, games
+
+ODDS_HISTORY = pathlib.Path("odds_history.csv")
+
+def log_odds_history(all_preds):
+    """Append EVERY priced player-prop we saw today to odds_history.csv.
+
+    This banks the real sportsbook line (odds + de-vigged implied prob) next to
+    the model's prediction and the game context, so each Odds API credit spent
+    becomes a permanent, owned row we never have to re-buy. Over time this file
+    becomes the real historical-odds dataset needed to measure profitability
+    (edge vs. actual outcomes) — the one thing a Statcast-only backtest can't do.
+
+    Idempotent per day: re-running the dashboard refreshes the same (date, player,
+    sportsbook) rows rather than duplicating them (captures line movement via the
+    latest snapshot).
+    """
+    today = datetime.now(ET).strftime("%Y-%m-%d")
+    priced = [r for r in all_preds if r.get("book_odds") is not None and r.get("model_prob") is not None]
+    if not priced:
+        print("No priced props to log to odds_history.csv today.")
+        return
+
+    fieldnames = [
+        "date", "player", "batter_id", "team", "game", "home_team", "pitcher",
+        "pitcher_hand", "batting_order", "game_total", "sportsbook", "n_books",
+        "book_odds", "book_implied", "model_prob", "matchup_score", "edge",
+        "result", "pnl",
+    ]
+
+    rows = []
+    if ODDS_HISTORY.exists():
+        with open(ODDS_HISTORY, newline="") as f:
+            rows = list(csv.DictReader(f))
+        # Preserve any extra columns added by other tooling
+        if rows:
+            for k in rows[0].keys():
+                if k not in fieldnames:
+                    fieldnames.append(k)
+
+    # Drop today's existing rows for players we're re-logging (refresh snapshot)
+    todays_players = {(today, r["player"]) for r in priced}
+    rows = [r for r in rows if (r.get("date"), r.get("player")) not in todays_players]
+
+    for r in priced:
+        new_row = {
+            "date":          today,
+            "player":        r["player"],
+            "batter_id":     r["batter_id"],
+            "team":          r["team"],
+            "game":          r.get("game_label", ""),
+            "home_team":     r.get("home_team", ""),
+            "pitcher":       r.get("pitcher", ""),
+            "pitcher_hand":  r.get("pitcher_hand", ""),
+            "batting_order": r.get("batting_order") if r.get("batting_order") is not None else "",
+            "game_total":    r.get("game_total") if r.get("game_total") is not None else "",
+            "sportsbook":    BOOK_NAMES.get(r.get("book_name"), r.get("book_name", "")),
+            "n_books":       r.get("n_books", ""),
+            "book_odds":     r.get("book_odds", ""),
+            "book_implied":  f'{r["book_implied"]:.2f}' if r.get("book_implied") is not None else "",
+            "model_prob":    f'{r["model_prob"]:.2f}' if r.get("model_prob") is not None else "",
+            "matchup_score": r.get("matchup_score") if r.get("matchup_score") is not None else "",
+            "edge":          f'{r["edge"]:.2f}' if r.get("edge") is not None else "",
+            "result":        "",   # filled later by check_results.py
+            "pnl":           "",
+        }
+        for k in fieldnames:
+            new_row.setdefault(k, "")
+        rows.append(new_row)
+
+    rows.sort(key=lambda x: (x.get("date", ""), x.get("player", "")))
+    with open(ODDS_HISTORY, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"Logged {len(priced)} priced props to odds_history.csv ({len(rows)} total rows banked)")
 
 def update_picks_history(all_preds):
     today = datetime.now(ET).strftime("%Y-%m-%d")
@@ -1978,10 +2134,10 @@ def generate_html(all_preds, games):
  
     def stars_html(p):
         if p is None: return '<span class="stars-wrap muted">—</span>'
-        if p >= 18:   n, cls = 5, "s5"
-        elif p >= 14: n, cls = 4, "s4"
-        elif p >= 10: n, cls = 3, "s3"
-        elif p >= 7:  n, cls = 2, "s2"
+        if p >= 75:   n, cls = 5, "s5"
+        elif p >= 55: n, cls = 4, "s4"
+        elif p >= 38: n, cls = 3, "s3"
+        elif p >= 22: n, cls = 2, "s2"
         else:         n, cls = 1, "s1"
         filled = '<span class="star-on">★</span>' * n
         empty  = '<span class="star-off">★</span>' * (5 - n)
@@ -2022,7 +2178,7 @@ def generate_html(all_preds, games):
                 f'<span class="book-tag">{book_lbl}</span>'
                 f'&nbsp;<span class="odds-num">{odds_fmt(r["book_odds"])}</span>'
                 f'&nbsp;<span class="implied-num">({r["book_implied"]:.1f}% implied)</span>'
-                f'&nbsp;→&nbsp;<span class="model-num">Matchup: {stars_html(r["model_prob"])}</span>'
+                f'&nbsp;→&nbsp;<span class="model-num">Matchup: {stars_html(r.get("matchup_score"))}</span>'
                 f'&nbsp;→&nbsp;<span class="edge-num {"edge-pos" if (r["edge"] or 0) > 0 else "edge-neg"}">Edge: {edge_str}</span>'
                 f'</div>'
             )
@@ -2030,7 +2186,7 @@ def generate_html(all_preds, games):
             odds_source = (
                 f'<div class="odds-source">'
                 f'<span class="no-odds">No odds posted yet</span>'
-                f'&nbsp;·&nbsp;<span class="model-num">Matchup: {stars_html(r["model_prob"])}</span>'
+                f'&nbsp;·&nbsp;<span class="model-num">Matchup: {stars_html(r.get("matchup_score"))}</span>'
                 f'</div>'
             ) if r["model_prob"] else ''
 
@@ -2043,7 +2199,7 @@ def generate_html(all_preds, games):
     {ph_badge}
     {platoon_badge}
     <span class="header-spacer"></span>
-    {stars_html(r['model_prob'])}
+    {stars_html(r.get('matchup_score'))}
     {edge_badge(r['edge'])}
   </div>
   <div class="card-body">
@@ -2060,16 +2216,23 @@ def generate_html(all_preds, games):
     # ── Ranked matchup list ──────────────────────────────────
     # ── Top Probability — best matchup quality regardless of odds ─
     top_prob = [r for r in all_preds if r.get("model_prob") is not None]
-    top_prob.sort(key=lambda r: r["model_prob"] or 0, reverse=True)
+    top_prob.sort(key=lambda r: r.get("matchup_score") or 0, reverse=True)
     top_prob_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_prob[:10])) \
         if top_prob else '<p class="empty">No predictions yet.</p>'
 
     # ── Top Edge — biggest gap between model probability and book implied %
+    # Requires established MLB track record: 200+ batted balls, real barrel/hard-hit numbers
+    MIN_BATTED   = 200
+    MIN_BARREL   = 0.05   # 5% barrel rate — filters out pure contact hitters
+    MIN_HARD_HIT = 0.30   # 30% hard-hit rate
     top_edge = [
         r for r in all_preds
         if r.get("edge") is not None and r["edge"] > 0
         and r.get("book_implied") is not None and r["book_implied"] > 0
         and r.get("model_prob") is not None
+        and (r.get("h_n_batted") or 0) >= MIN_BATTED
+        and (r.get("h_barrel_pct") or 0) >= MIN_BARREL
+        and (r.get("h_hard_hit_pct") or 0) >= MIN_HARD_HIT
     ]
     top_edge.sort(key=lambda r: r["edge"] or 0, reverse=True)
     top_edge_html = "\n".join(player_card(r, i + 1) for i, r in enumerate(top_edge[:10])) \
@@ -2147,7 +2310,7 @@ def generate_html(all_preds, games):
  
             rows += f"""<tr class="ln-row">
   <td class="ln-name">{r['player']}</td>
-  <td class="ln-stars">{stars_html(prob)}</td>
+  <td class="ln-stars">{stars_html(r.get('matchup_score'))}</td>
   <td class="ln-odds">{odds_str}</td>
   <td class="{edge_cls}">{edge_str}</td>
   {stat_cells}
@@ -2410,6 +2573,7 @@ function showTab(id) {{
  
 if __name__ == "__main__":
     all_preds, games = build_dashboard()
+    log_odds_history(all_preds)
     update_picks_history(all_preds)
     html = generate_html(all_preds, games)
     with open("index.html", "w") as f:
