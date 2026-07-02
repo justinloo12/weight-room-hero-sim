@@ -17,7 +17,10 @@ except ImportError:
     HAS_SCIPY = False
     def scipy_expit(x): return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
 
-ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "3f2e2d867484541b580084248cdb1d1c")
+ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
+if not ODDS_API_KEY:
+    print("  ODDS_API_KEY not set — live odds/totals disabled (model-only picks). "
+          "Set it via the ODDS_API_KEY env var / GitHub secret.")
  
 print("Loading profiles...")
 hitter  = pd.read_csv("hitter_profiles.csv")
@@ -1415,6 +1418,50 @@ def get_roster(team_id):
         return []
  
 # ── Odds ───────────────────────────────────────────────────────
+def fetch_game_totals():
+    """Fetch game totals (over/under) for ALL games in ONE bulk request.
+
+    The totals market is a 'featured' market available on the bulk /odds
+    endpoint, so a single call (1 API credit) covers every game — far cheaper
+    than requesting totals per-event alongside player props. Returns
+    {team_abbr: consensus_total} for both home and away teams.
+    """
+    totals = {}
+    if not ODDS_API_KEY:
+        return totals
+    try:
+        resp = requests.get(
+            f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
+            f"?apiKey={ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american",
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            print(f"  Totals fetch error: {resp.status_code}")
+            return totals
+        print(f"  Totals: 1 bulk request | remaining {resp.headers.get('x-requests-remaining','?')}")
+        for ev in resp.json():
+            home = TEAM_NAME_TO_ABBR.get(ev.get("home_team", ""))
+            away = TEAM_NAME_TO_ABBR.get(ev.get("away_team", ""))
+            pts = []
+            for bm in ev.get("bookmakers", []):
+                for market in bm.get("markets", []):
+                    if market.get("key") != "totals":
+                        continue
+                    for outcome in market.get("outcomes", []):
+                        if str(outcome.get("name", "")).strip().lower() == "over":
+                            try:
+                                pts.append(float(outcome.get("point")))
+                            except (TypeError, ValueError):
+                                pass
+            if pts:
+                avg = round(sum(pts) / len(pts), 1)
+                if home: totals[home] = avg
+                if away: totals[away] = avg
+    except Exception as e:
+        print(f"  Totals error: {e}")
+    return totals
+
+
 def fetch_odds():
     """Fetch live 0.5+ HR props, preferring DraftKings when available.
 
@@ -1428,7 +1475,7 @@ def fetch_odds():
     print("Fetching HR odds from live sportsbooks...")
     now_utc = datetime.now(timezone.utc)
     raw_all  = {}   # {ckey: {book_key: {"player", "book_odds", "book_implied", "book"}}}
-    game_totals = {}  # {team_abbr: over/under total} for both home & away teams
+    game_totals = fetch_game_totals()  # one bulk call for all game over/unders
     seen_books = set()
     books_with_hr_market = set()
     draftkings_seen = False
@@ -1440,11 +1487,11 @@ def fetch_odds():
         )
         if ev_resp.status_code != 200:
             print(f"  Events error: {ev_resp.status_code}")
-            return {}, {}
+            return {}, game_totals
 
         events = ev_resp.json()
         if not isinstance(events, list):
-            return {}, {}
+            return {}, game_totals
  
         # ── Filter to pregame events only ─────────────────────
         pregame = []
@@ -1468,7 +1515,7 @@ def fetch_odds():
  
             pr = requests.get(
                 f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events/{eid}/odds"
-                f"?apiKey={ODDS_API_KEY}&regions=us,us2&markets=batter_home_runs,totals"
+                f"?apiKey={ODDS_API_KEY}&regions=us,us2&markets=batter_home_runs"
                 f"&oddsFormat=american", timeout=15
             )
             if pr.status_code == 429:
@@ -1479,28 +1526,12 @@ def fetch_odds():
             if i == 0:
                 print(f"  Requests remaining: {pr.headers.get('x-requests-remaining','?')}")
 
-            odds_json   = pr.json()
-            home_abbr   = TEAM_NAME_TO_ABBR.get(odds_json.get("home_team", ""))
-            away_abbr   = TEAM_NAME_TO_ABBR.get(odds_json.get("away_team", ""))
-            event_total_pts = []  # collect totals across books, then average
-
-            for bm in odds_json.get("bookmakers", []):
+            for bm in pr.json().get("bookmakers", []):
                 book_key = bm.get("key", "")
                 if not book_key:
                     continue
                 seen_books.add(book_key)
                 for market in bm.get("markets", []):
-                    # ── Game total (over/under) ──────────────────
-                    if market.get("key") == "totals":
-                        for outcome in market.get("outcomes", []):
-                            if str(outcome.get("name", "")).strip().lower() == "over":
-                                pt = outcome.get("point")
-                                if pt is not None:
-                                    try:
-                                        event_total_pts.append(float(pt))
-                                    except (TypeError, ValueError):
-                                        pass
-                        continue
                     if market.get("key") != "batter_home_runs":
                         continue
                     books_with_hr_market.add(book_key)
@@ -1558,14 +1589,6 @@ def fetch_odds():
                                 "book_implied": round(fair_implied * 100, 2),
                                 "book":         book_key,
                             }
-
-            # Store consensus game total for both teams in this matchup
-            if event_total_pts:
-                avg_total = round(sum(event_total_pts) / len(event_total_pts), 1)
-                if home_abbr:
-                    game_totals[home_abbr] = avg_total
-                if away_abbr:
-                    game_totals[away_abbr] = avg_total
     except Exception as e:
         print(f"  Odds error: {e}")
 

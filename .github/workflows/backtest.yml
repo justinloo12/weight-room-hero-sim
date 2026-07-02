@@ -1,0 +1,31 @@
+name: Walk-Forward Backtest
+
+# Honest, leak-free HR backtest on 2025 data.
+# Uses ONLY free Statcast data — makes ZERO calls to the paid Odds API.
+# Manual trigger only (does not run on a schedule; nothing is committed).
+
+on:
+  workflow_dispatch:
+    inputs:
+      cutoff:
+        description: "Profiles use games before this date; test on games after"
+        required: false
+        default: "2025-07-01"
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Pull Statcast data (free — no API key)
+        run: python pull_data.py
+
+      - name: Run walk-forward backtest
+        run: python backtest_walkforward.py --cutoff "${{ github.event.inputs.cutoff }}"
