@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 ET       = ZoneInfo("America/New_York")
 BET_SIZE = 100         # dollars per pick
 HISTORY  = pathlib.Path("picks_history.csv")
+ODDS_HISTORY = pathlib.Path("odds_history.csv")
 MLB_GAME_LOG = "https://statsapi.mlb.com/api/v1/people/{batter_id}/stats?stats=gameLog&season={season}&gameType=R&language=en"
 RESULT_CHECK_CUTOFF = "2026-06-01"
  
@@ -64,18 +65,22 @@ def row_date(row: dict) -> str:
  
  
 # ── main ─────────────────────────────────────────────────────────────────────
- 
-def main():
-    if not HISTORY.exists():
-        print("picks_history.csv not found — nothing to check.")
+
+def process_file(path: pathlib.Path, hr_date_cache: dict):
+    """Resolve results/pnl for one history CSV. Shares the HR-date cache across
+    files so we never re-fetch the same batter's game log from the MLB API."""
+    if not path.exists():
+        print(f"{path.name} not found — skipping.")
         return
- 
-    with open(HISTORY, newline="") as f:
+
+    with open(path, newline="") as f:
         rows = list(csv.DictReader(f))
- 
+
     if not rows:
-        print("picks_history.csv is empty.")
+        print(f"{path.name} is empty.")
         return
+
+    print(f"\n### {path.name} ###")
 
     fieldnames = list(rows[0].keys()) if rows else []
     if "date" not in fieldnames and "game_date" not in fieldnames:
@@ -99,11 +104,9 @@ def main():
         print("No pending picks to resolve.")
     else:
         print(f"Resolving {len(needs_check)} picks...")
- 
-    # Cache game-log lookups per (batter_id, season) to minimise API calls
-    hr_date_cache: dict[tuple, set] = {}
+
     updated = 0
- 
+
     for row in needs_check:
         date_str  = row_date(row)
         if not date_str:
@@ -140,12 +143,11 @@ def main():
         updated += 1
  
     # Write back (preserve all original rows)
-    if updated > 0 or True:
-        with open(HISTORY, "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=fieldnames)
-            w.writeheader()
-            w.writerows(rows)
-        print(f"Updated {updated} rows in picks_history.csv")
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"Updated {updated} rows in {path.name}")
  
     # ── Summary stats ──────────────────────────────────────────────────────
     resolved = [r for r in rows if r.get("result")]
@@ -175,14 +177,18 @@ def main():
     total_profit = sum(pnls)
     roi          = (total_profit / total_bet * 100) if total_bet else 0
  
-    print(f"\n{'='*40}")
-    print(f"  Picks tracked : {total}")
-    print(f"  HR hit rate   : {hits}/{total} ({hit_rate:.1f}%)")
-    print(f"  Total wagered : ${total_bet:.0f}")
-    print(f"  Net profit    : ${total_profit:+.2f}")
-    print(f"  ROI           : {roi:+.1f}%")
-    print(f"{'='*40}\n")
- 
- 
+    print(f"  {'-'*38}")
+    print(f"  {path.name}: {hits}/{total} HR ({hit_rate:.1f}%) | "
+          f"wagered ${total_bet:.0f} | net ${total_profit:+.2f} | ROI {roi:+.1f}%")
+    print(f"  {'-'*38}")
+
+
+def main():
+    # Shared HR-date cache across both files avoids duplicate MLB API calls
+    hr_date_cache: dict[tuple, set] = {}
+    process_file(HISTORY, hr_date_cache)          # tracked top-N picks
+    process_file(ODDS_HISTORY, hr_date_cache)     # full banked odds dataset
+
+
 if __name__ == "__main__":
     main()

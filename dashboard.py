@@ -1830,6 +1830,8 @@ def build_dashboard():
                     "n_books":      n_books,
                     "model_prob":   model_prob,
                     "matchup_score": matchup_score,
+                    "game_total":   game_totals.get(home),
+                    "batting_order": batting_orders.get(bid),
                     "edge":         edge,
                     "value":        value,
                     "reasons":      reasons,
@@ -1860,6 +1862,81 @@ def build_dashboard():
     model_count = sum(1 for r in all_preds if r["model_prob"] is not None)
     print(f"  Model: {model_count} | Value picks: {value_count}")
     return all_preds, games
+
+ODDS_HISTORY = pathlib.Path("odds_history.csv")
+
+def log_odds_history(all_preds):
+    """Append EVERY priced player-prop we saw today to odds_history.csv.
+
+    This banks the real sportsbook line (odds + de-vigged implied prob) next to
+    the model's prediction and the game context, so each Odds API credit spent
+    becomes a permanent, owned row we never have to re-buy. Over time this file
+    becomes the real historical-odds dataset needed to measure profitability
+    (edge vs. actual outcomes) — the one thing a Statcast-only backtest can't do.
+
+    Idempotent per day: re-running the dashboard refreshes the same (date, player,
+    sportsbook) rows rather than duplicating them (captures line movement via the
+    latest snapshot).
+    """
+    today = datetime.now(ET).strftime("%Y-%m-%d")
+    priced = [r for r in all_preds if r.get("book_odds") is not None and r.get("model_prob") is not None]
+    if not priced:
+        print("No priced props to log to odds_history.csv today.")
+        return
+
+    fieldnames = [
+        "date", "player", "batter_id", "team", "game", "home_team", "pitcher",
+        "pitcher_hand", "batting_order", "game_total", "sportsbook", "n_books",
+        "book_odds", "book_implied", "model_prob", "matchup_score", "edge",
+        "result", "pnl",
+    ]
+
+    rows = []
+    if ODDS_HISTORY.exists():
+        with open(ODDS_HISTORY, newline="") as f:
+            rows = list(csv.DictReader(f))
+        # Preserve any extra columns added by other tooling
+        if rows:
+            for k in rows[0].keys():
+                if k not in fieldnames:
+                    fieldnames.append(k)
+
+    # Drop today's existing rows for players we're re-logging (refresh snapshot)
+    todays_players = {(today, r["player"]) for r in priced}
+    rows = [r for r in rows if (r.get("date"), r.get("player")) not in todays_players]
+
+    for r in priced:
+        new_row = {
+            "date":          today,
+            "player":        r["player"],
+            "batter_id":     r["batter_id"],
+            "team":          r["team"],
+            "game":          r.get("game_label", ""),
+            "home_team":     r.get("home_team", ""),
+            "pitcher":       r.get("pitcher", ""),
+            "pitcher_hand":  r.get("pitcher_hand", ""),
+            "batting_order": r.get("batting_order") if r.get("batting_order") is not None else "",
+            "game_total":    r.get("game_total") if r.get("game_total") is not None else "",
+            "sportsbook":    BOOK_NAMES.get(r.get("book_name"), r.get("book_name", "")),
+            "n_books":       r.get("n_books", ""),
+            "book_odds":     r.get("book_odds", ""),
+            "book_implied":  f'{r["book_implied"]:.2f}' if r.get("book_implied") is not None else "",
+            "model_prob":    f'{r["model_prob"]:.2f}' if r.get("model_prob") is not None else "",
+            "matchup_score": r.get("matchup_score") if r.get("matchup_score") is not None else "",
+            "edge":          f'{r["edge"]:.2f}' if r.get("edge") is not None else "",
+            "result":        "",   # filled later by check_results.py
+            "pnl":           "",
+        }
+        for k in fieldnames:
+            new_row.setdefault(k, "")
+        rows.append(new_row)
+
+    rows.sort(key=lambda x: (x.get("date", ""), x.get("player", "")))
+    with open(ODDS_HISTORY, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"Logged {len(priced)} priced props to odds_history.csv ({len(rows)} total rows banked)")
 
 def update_picks_history(all_preds):
     today = datetime.now(ET).strftime("%Y-%m-%d")
@@ -2496,6 +2573,7 @@ function showTab(id) {{
  
 if __name__ == "__main__":
     all_preds, games = build_dashboard()
+    log_odds_history(all_preds)
     update_picks_history(all_preds)
     html = generate_html(all_preds, games)
     with open("index.html", "w") as f:
