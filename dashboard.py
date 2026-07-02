@@ -1290,6 +1290,14 @@ def predict_with_reasons(batter_id, pitcher_name, home_team, pitcher_hand="R", o
         talent = batter_score * 0.5 + pitcher_score * 0.5  # 0-100
         prob = round((3.0 + (talent / 100.0) * 22.0) * env_mult, 2)
 
+    # ── Empirical calibration ───────────────────────────────────
+    # Fitted on the 2025 walk-forward backtest (leak-free temporal split):
+    # raw predictions overshot actual HR rates ~25-30% in every decile.
+    # Linear fit of decile actual-vs-predicted (R^2 = 0.97):
+    #   calibrated = 0.923 × raw − 2.730
+    # Re-fit whenever the backtest is re-run after model/formula changes.
+    prob = round(0.923 * prob - 2.730, 2)
+
     prob = max(0.3, min(45.0, prob))
  
     # ── Pick reasons: top positive z-scores + worst negatives ──
