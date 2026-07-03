@@ -1,0 +1,15 @@
+# Secrets — never commit real credentials
+.env
+
+# Large Statcast datasets (hundreds of MB — regenerate with pull_data.py /
+# build_features.py). Anything matching homerun_data_*.csv stays local.
+homerun_data_*.csv
+props.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS junk
+.DS_Store
