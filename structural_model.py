@@ -65,6 +65,26 @@ PLATOON_FACTOR_CLIP = (0.7, 1.4)
 # many pseudo-games (about two weeks of starts).
 EPA_PRIOR_GAMES = 10.0
 
+# ── v2 constants (lineup slots + park factors) ────────────────────────────
+# Weight on the league PA/game-for-his-slot mean when the batter's slot in
+# TODAY'S posted lineup is known; the rest stays on his trailing PA/game
+# (which carries player-specific effects like getting pinch-hit for).
+SLOT_EPA_WEIGHT = 0.7
+
+# Slots 1-9 are the starting lineup; a first PA ranking beyond 9 means a
+# mid-game substitute, whose slot is NOT knowable from a posted lineup.
+MAX_LINEUP_SLOT = 9
+
+# Park factors by batter handedness are shrunk toward 1.0 with this many
+# pseudo-PA at the league rate. A park/hand cell gets ~2,500-3,500 PA per
+# season, so one season of data moves the factor roughly halfway from 1.0
+# to its raw value — deliberate heavy regression.
+PARK_PSEUDO_PA = 2000.0
+
+# Post-shrinkage guard rails. Even Coors should not exceed this after
+# regression on one-plus season of data.
+PARK_FACTOR_CLIP = (0.80, 1.25)
+
 # Safety cap on the per-PA probability (the best HR seasons ever peaked
 # near 0.10 HR/PA; anything above 0.25 is a bug, not a forecast).
 P_PA_CAP = 0.25
@@ -212,9 +232,9 @@ class StructuralModel:
             total_pa, games = 0.0, 0.0
         return expected_pa_per_game(total_pa, games, self.league_pa_per_game)
 
-    def predict(self, batter, opposing_pitcher=None, pitcher_hand=None):
-        """P(batter hits >= 1 HR in the game). Missing pitcher/hand fall
-        back to neutral factors of 1.0."""
+    def _p_pa(self, batter, opposing_pitcher=None, pitcher_hand=None):
+        """Uncapped per-PA HR probability: shrunk batter rate times pitcher
+        and platoon factors. Missing pitcher/hand fall back to 1.0."""
         p = self.batter_rate(batter)
 
         if opposing_pitcher is not None and opposing_pitcher in self.pitcher_totals.index:
@@ -227,8 +247,12 @@ class StructuralModel:
                 row = self.batter_by_hand.loc[key]
                 overall = self.batter_rate(batter)
                 p *= platoon_factor(row["hr"], row["pa"], overall)
+        return p
 
-        p = min(p, P_PA_CAP)
+    def predict(self, batter, opposing_pitcher=None, pitcher_hand=None):
+        """P(batter hits >= 1 HR in the game). Missing pitcher/hand fall
+        back to neutral factors of 1.0."""
+        p = min(self._p_pa(batter, opposing_pitcher, pitcher_hand), P_PA_CAP)
         return float(game_hr_probability(p, self.expected_pa(batter)))
 
     def predict_frame(self, rows):
@@ -245,12 +269,227 @@ class StructuralModel:
 def pa_table_from_statcast(all_pitches):
     """Collapse a raw Statcast pitch-level frame to one row per PA with the
     columns StructuralModel needs. Mirrors build_features.build_pa_df but
-    keeps only what the structural model uses."""
+    keeps only what the structural model uses. v2 columns (at_bat_number,
+    inning_topbot, stand, home_team, player_name) are kept when present so
+    StructuralModelV2 can infer lineup slots and park factors."""
     sort_cols = [c for c in ["game_pk", "at_bat_number", "pitch_number"] if c in all_pitches.columns]
     pa = (all_pitches.sort_values(sort_cols)
           .groupby(["game_pk", "at_bat_number", "batter"], as_index=False)
           .tail(1))
-    keep = [c for c in ["game_pk", "game_date", "batter", "pitcher", "p_throws", "events"] if c in pa.columns]
+    keep = [c for c in ["game_pk", "game_date", "at_bat_number", "inning_topbot",
+                        "batter", "pitcher", "player_name", "stand", "p_throws",
+                        "home_team", "events"] if c in pa.columns]
     pa = pa[keep].copy()
     pa["is_hr"] = (pa["events"] == "home_run").astype(int)
     return pa
+
+
+# ── v2: lineup-slot E[PA] and park factors by handedness ─────────────────
+
+def infer_game_slots(pa_df):
+    """Infer each batter's batting-order slot per game from PA ordering.
+
+    Within a (game_pk, inning_topbot) team-half, batters first appear in
+    batting-order sequence, so the rank of each batter's FIRST plate
+    appearance (by at_bat_number) is his lineup slot. Slots above
+    MAX_LINEUP_SLOT are mid-game substitutes (pinch hitters, injury subs):
+    their entry order is real but NOT knowable from a posted pre-game
+    lineup, so callers should treat slot > 9 as unknown.
+
+    Returns a DataFrame with columns game_pk, batter, slot.
+    """
+    first = (pa_df.sort_values(["game_pk", "at_bat_number"])
+             .drop_duplicates(["game_pk", "inning_topbot", "batter"])
+             .copy())
+    first["slot"] = (first.groupby(["game_pk", "inning_topbot"])["at_bat_number"]
+                     .rank(method="first").astype(int))
+    return first[["game_pk", "batter", "slot"]]
+
+
+def pa_per_game_by_slot(pa_df, slots=None):
+    """League-average plate appearances per game for lineup slots 1-9.
+
+    Computed over starting-lineup player-games only (slot <= 9); mid-game
+    substitutes are excluded because their partial games would drag every
+    slot mean down. Returns a Series indexed by slot.
+    """
+    if slots is None:
+        slots = infer_game_slots(pa_df)
+    counts = pa_df.groupby(["game_pk", "batter"]).size().rename("n_pa").reset_index()
+    merged = counts.merge(slots, on=["game_pk", "batter"], how="inner")
+    starters = merged[merged["slot"] <= MAX_LINEUP_SLOT]
+    return starters.groupby("slot")["n_pa"].mean()
+
+
+def park_factors_by_hand(pa_df, pseudo_pa=PARK_PSEUDO_PA, clip=PARK_FACTOR_CLIP):
+    """Per-park HR/PA indices split by batter handedness, shrunk toward 1.0.
+
+    For each batter side ('L'/'R') the park's HR/PA is shrunk toward the
+    league rate FOR THAT SIDE with pseudo_pa pseudo-observations, then
+    expressed as a ratio to that league rate and clipped. Shrinking toward
+    the side-specific league rate means the factor isolates the park, not
+    the league-wide L/R power difference (that lives in the batter's own
+    rate already).
+
+    Returns {(home_team, stand): factor}.
+    """
+    out = {}
+    valid = pa_df.dropna(subset=["home_team", "stand"])
+    for stand, grp in valid.groupby("stand"):
+        league = float(grp["is_hr"].mean())
+        if league <= 0:
+            continue
+        agg = grp.groupby("home_team")["is_hr"].agg(["sum", "count"])
+        shrunk = (agg["sum"] + pseudo_pa * league) / (agg["count"] + pseudo_pa)
+        factors = (shrunk / league).clip(*clip)
+        for team, f in factors.items():
+            out[(team, stand)] = float(f)
+    return out
+
+
+def _norm_name(name):
+    """Normalize a player name for lookups: strips accents, lowercases,
+    and converts Statcast's 'Last, First' to 'first last'."""
+    import unicodedata
+    s = str(name).strip()
+    if "," in s:
+        last, _, first = s.partition(",")
+        s = f"{first.strip()} {last.strip()}"
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+    return " ".join(s.lower().split())
+
+
+class StructuralModelV2(StructuralModel):
+    """v1 plus (a) lineup-slot-aware E[PA] and (b) park factors by
+    handedness. Both additions are built from the SAME pre-cutoff pa_df as
+    the v1 tables — no test-window data ever enters the constants. The
+    only per-game inputs are the batter's slot in the posted lineup and
+    the park/handedness of the matchup, all knowable pre-game.
+    """
+
+    def __init__(self, pa_df):
+        super().__init__(pa_df)
+
+        if {"at_bat_number", "inning_topbot"}.issubset(pa_df.columns):
+            slots = infer_game_slots(pa_df)
+            self.pa_by_slot = {int(k): float(v)
+                               for k, v in pa_per_game_by_slot(pa_df, slots).items()}
+        else:
+            self.pa_by_slot = {}
+
+        if {"home_team", "stand"}.issubset(pa_df.columns):
+            self.park_factors = park_factors_by_hand(pa_df)
+            stand_mode = pa_df.dropna(subset=["stand"]).groupby("batter")["stand"] \
+                              .agg(lambda s: s.mode().iat[0])
+            self.batter_stand = stand_mode.to_dict()
+        else:
+            self.park_factors = {}
+            self.batter_stand = {}
+
+        # Statcast's player_name column is the PITCHER's name on each pitch
+        # row; keep a normalized name -> id map so production callers that
+        # only know the starter's display name can find his totals.
+        if "player_name" in pa_df.columns:
+            names = pa_df.dropna(subset=["player_name"]).groupby("pitcher")["player_name"].first()
+            self.pitcher_id_by_name = {_norm_name(n): pid for pid, n in names.items()}
+        else:
+            self.pitcher_id_by_name = {}
+
+    # -- v2 component lookups ----------------------------------------------
+
+    def lookup_pitcher_id(self, name):
+        if name is None:
+            return None
+        return self.pitcher_id_by_name.get(_norm_name(name))
+
+    def park_factor(self, park, stand):
+        """Shrunk HR park factor for (park, batter side); 1.0 if unknown."""
+        if park is None:
+            return 1.0
+        return self.park_factors.get((park, stand), 1.0)
+
+    def expected_pa_v2(self, batter, slot=None):
+        """Slot-aware E[PA]: blend of the league PA/game mean for the
+        batter's posted lineup slot and his trailing regressed PA/game.
+        Unknown slot (None, or >9 i.e. a sub) falls back to v1 behavior."""
+        trailing = self.expected_pa(batter)
+        if slot is not None and slot in self.pa_by_slot:
+            return SLOT_EPA_WEIGHT * self.pa_by_slot[slot] + (1.0 - SLOT_EPA_WEIGHT) * trailing
+        return trailing
+
+    def predict_v2(self, batter, opposing_pitcher=None, pitcher_hand=None,
+                   slot=None, park=None, stand=None,
+                   use_slots=True, use_parks=True):
+        """P(batter hits >= 1 HR in the game), v2.
+
+        use_slots/use_parks toggle the two upgrades independently so an
+        ablation can isolate each one's contribution; with both False this
+        reproduces v1's predict() exactly.
+        """
+        p = self._p_pa(batter, opposing_pitcher, pitcher_hand)
+        if use_parks:
+            if stand is None:
+                stand = self.batter_stand.get(batter)
+            p *= self.park_factor(park, stand)
+        p = min(p, P_PA_CAP)
+        epa = self.expected_pa_v2(batter, slot) if use_slots else self.expected_pa(batter)
+        return float(game_hr_probability(p, epa))
+
+    # -- persistence ---------------------------------------------------------
+    # The pickle holds a plain dict of tables (never the instance itself):
+    # pickling the instance would embed the defining module's name, which
+    # breaks when the model is built via `python3 structural_model.py build`
+    # (class recorded as __main__.StructuralModelV2) and loaded elsewhere.
+
+    def save(self, path):
+        import pickle
+        with open(path, "wb") as f:
+            pickle.dump({"format": "structural_v2_state", "state": self.__dict__}, f)
+
+    @staticmethod
+    def load(path):
+        import pickle
+        with open(path, "rb") as f:
+            payload = pickle.load(f)
+        model = StructuralModelV2.__new__(StructuralModelV2)
+        model.__dict__.update(payload["state"])
+        return model
+
+
+def build_production_model(paths=("homerun_data_all.csv", "holdout_2026.csv"),
+                           out_path="structural_v2.pkl", verbose=True):
+    """Build a StructuralModelV2 from all Statcast data on disk and pickle
+    it for the dashboard. Deployment (not evaluation) artifact: uses every
+    date available, so never score historical games with it."""
+    from pathlib import Path
+    usecols = {"game_pk", "game_date", "at_bat_number", "pitch_number",
+               "inning_topbot", "batter", "pitcher", "player_name",
+               "stand", "p_throws", "home_team", "events"}
+    frames = []
+    for path in paths:
+        if not Path(path).exists():
+            if verbose:
+                print(f"  {path}: not found, skipping")
+            continue
+        df = pd.read_csv(path, usecols=lambda c: c in usecols, low_memory=False)
+        frames.append(df)
+        if verbose:
+            print(f"  {path}: {len(df):,} pitches")
+    if not frames:
+        raise FileNotFoundError("no Statcast CSVs found to build the model from")
+    pa = pa_table_from_statcast(pd.concat(frames, ignore_index=True))
+    model = StructuralModelV2(pa)
+    model.save(out_path)
+    if verbose:
+        print(f"  built from {len(pa):,} PAs -> {out_path}")
+        print(f"  PA/game by slot: " +
+              ", ".join(f"{s}:{v:.2f}" for s, v in sorted(model.pa_by_slot.items())))
+    return model
+
+
+if __name__ == "__main__":
+    import sys
+    if sys.argv[1:2] == ["build"]:
+        build_production_model()
+    else:
+        print("usage: python3 structural_model.py build   # writes structural_v2.pkl")

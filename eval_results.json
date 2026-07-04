@@ -106,5 +106,127 @@
       "mean_pred": 0.1058,
       "actual_rate": 0.1591
     }
+  },
+  "structural_v2": {
+    "config": {
+      "slot_epa": "E[PA] = 0.7 * league PA/game for the batter's slot that game + 0.3 * trailing regressed PA/game; slot constants from the pre-cutoff window only; subs (slot>9) fall back to v1 E[PA]",
+      "park_factors": "per-park HR/PA by batter hand, shrunk toward 1.0 with 2000 pseudo-PA, clipped to [0.80, 1.25], pre-cutoff only"
+    },
+    "player_game_ablation": {
+      "v1_structural": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6124,
+        "brier": 0.09286,
+        "log_loss": 0.32961,
+        "mean_pred": 0.11,
+        "actual_rate": 0.1053
+      },
+      "v1_plus_slots": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6169,
+        "brier": 0.0928,
+        "log_loss": 0.32909,
+        "mean_pred": 0.1137,
+        "actual_rate": 0.1053
+      },
+      "v1_plus_parks": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6131,
+        "brier": 0.09292,
+        "log_loss": 0.3297,
+        "mean_pred": 0.1107,
+        "actual_rate": 0.1053
+      },
+      "v2_slots_plus_parks": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6173,
+        "brier": 0.09286,
+        "log_loss": 0.3292,
+        "mean_pred": 0.1145,
+        "actual_rate": 0.1053
+      }
+    },
+    "picks_subset_ablation (n=88)": {
+      "market_implied_devig": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.6327,
+        "brier": 0.13159,
+        "log_loss": 0.42454,
+        "mean_pred": 0.1852,
+        "actual_rate": 0.1591
+      },
+      "v1_structural": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.4932,
+        "brier": 0.14053,
+        "log_loss": 0.45374,
+        "mean_pred": 0.1879,
+        "actual_rate": 0.1591
+      },
+      "v1_plus_slots": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.501,
+        "brier": 0.14025,
+        "log_loss": 0.45257,
+        "mean_pred": 0.1932,
+        "actual_rate": 0.1591
+      },
+      "v1_plus_parks": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.5212,
+        "brier": 0.14138,
+        "log_loss": 0.45339,
+        "mean_pred": 0.1938,
+        "actual_rate": 0.1591
+      },
+      "v2_slots_plus_parks": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.5212,
+        "brier": 0.14097,
+        "log_loss": 0.45198,
+        "mean_pred": 0.1988,
+        "actual_rate": 0.1591
+      }
+    },
+    "betting_simulation": {
+      "description": "Flat 1u on Yes when structural_v2 prob - devig market prob >= threshold, settled at recorded book odds. CAVEAT: n=88 model-selected picks, not a random market sample; treat as illustrative only.",
+      "edge>=0.01": {
+        "bets": 49,
+        "wins": 6,
+        "losses": 43,
+        "pnl_units": -19.65,
+        "roi": -0.401
+      },
+      "edge>=0.02": {
+        "bets": 41,
+        "wins": 4,
+        "losses": 37,
+        "pnl_units": -19.0,
+        "roi": -0.4634
+      },
+      "edge>=0.03": {
+        "bets": 31,
+        "wins": 4,
+        "losses": 27,
+        "pnl_units": -9.0,
+        "roi": -0.2903
+      },
+      "edge>=0.05": {
+        "bets": 14,
+        "wins": 0,
+        "losses": 14,
+        "pnl_units": -14.0,
+        "roi": -1.0
+      }
+    }
   }
 }

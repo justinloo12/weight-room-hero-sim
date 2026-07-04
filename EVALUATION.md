@@ -59,9 +59,63 @@ on the 88 tracked picks that fall inside the test window.
 5. **Track CLV on every pick going forward** (closing price vs bet price), the
    fastest-converging measure of whether any of the above created real edge.
 
+## v2 upgrades: lineup-slot E[PA] + park factors — ablation results
+
+Two upgrades, both leakage-safe (constants computed from the training window
+only): **(1)** E[PA] from the batter's inferred lineup slot that game (70%
+league slot average + 30% trailing personal rate), **(2)** per-park HR/PA
+factors split by batter handedness, shrunk toward 1.0 with 2,000 pseudo-PA and
+clipped to [0.80, 1.25].
+
+### Player-game level (n = 27,258)
+
+| Variant | AUC | Brier ↓ | Log loss ↓ |
+|---|---|---|---|
+| v1 structural | 0.6124 | 0.09286 | 0.32961 |
+| v1 + slots | 0.6169 | 0.09280 | 0.32909 |
+| v1 + parks | 0.6131 | 0.09292 | 0.32970 |
+| **v2 (slots + parks)** | **0.6173** | 0.09286 | 0.32920 |
+
+### On the 88 tracked picks, vs the market
+
+| Predictor | AUC | Brier ↓ |
+|---|---|---|
+| **Market implied (de-vig)** | **0.6327** | **0.13159** |
+| v2 (slots + parks) | 0.5212 | 0.14097 |
+| v1 structural | 0.4932 | 0.14053 |
+
+### Betting simulation (flat 1u on Yes when v2 prob − de-vig market prob ≥ threshold)
+
+| Threshold | Bets | Record | ROI |
+|---|---|---|---|
+| ≥1pp | 49 | 6–43 | **−40.1%** |
+| ≥2pp | 41 | 4–37 | **−46.3%** |
+| ≥3pp | 31 | 4–27 | **−29.0%** |
+| ≥5pp | 14 | 0–14 | **−100%** |
+
+*Caveat: n = 88 model-selected picks, not a random market sample — illustrative
+only. The direction, however, is unambiguous.*
+
+### Verdict — plainly
+
+**The v2 upgrades did not close the gap to the market.** Slots and parks are
+real effects and v2 is the best model in this repo (AUC 0.6124 → 0.6173), but
+the market's Brier advantage barely moved — because books already price slots
+and parks. The betting simulation shows the fatal pattern: the more the model
+disagrees with the market, the worse it does. The model's perceived edge is
+its own error, not the book's.
+
+**Conclusion: no betting edge exists in this system as built.** The remaining
+gap is day-of information (confirmed lineups, weather at first pitch, pitcher
+velocity trends) and price selection across books — not more historical
+feature engineering. This is a negative result, reached honestly, and the
+methodology (leakage-safe walk-forward ablation against a market benchmark) is
+the reusable part.
+
 ## Reproduce
 
 ```bash
 python3 evaluate_model.py     # writes eval_results.json + calibration_curve.png
+python3 structural_model.py build   # rebuilds structural_v2.pkl
 python3 -m unittest discover tests
 ```

@@ -50,6 +50,9 @@ check_results.py ──> resolves picks_history.csv results and P&L
   from The Odds API, computes each hitter's model probability and edge vs the
   book, sizes stakes with fractional Kelly, appends tracked picks to
   `picks_history.csv`, and writes a self-contained `index.html` dashboard.
+  Prices come from the **structural v2 model** (`structural_v2.pkl`, rebuilt
+  with `python3 structural_model.py build`) by default; set
+  `HR_PROB_SOURCE=gbm` to fall back to the legacy GBM stack.
 - **`alert_homers.py`** — runs every 15 minutes during game hours via the
   GitHub Actions workflow (`.github/workflows/discord-homer-alerts.yml`).
   Checks the free MLB Stats API for same-day home runs by tracked picks and
@@ -98,6 +101,21 @@ Configure environment variables (see `.env.example`):
 |---|---|---|
 | `ODDS_API_KEY` | `dashboard.py` | The Odds API key for HR prop odds |
 | `DISCORD_WEBHOOK_URL` | `alert_homers.py` | Discord webhook for live HR alerts |
+| `HR_PROB_SOURCE` | `dashboard.py` | `structural_v2` (default) or `gbm` price source |
+| `ODDS_API_MIN_REMAINING` | `dashboard.py` | Credit reserve floor before odds pulls are skipped (default 500) |
+
+### Odds API credit budget
+
+The Odds API plan allows **20,000 credits/month**, and the per-event player-prop
+endpoint is the expensive one: it bills roughly **1 credit × regions × markets
+per event**. `dashboard.py` therefore requests a single region (`us`) and a
+single market (`batter_home_runs`) for **today's pregame events only**, checks
+the free MLB Stats API schedule first (a no-game day costs 0 credits), and logs
+`x-requests-used` / `x-requests-remaining` to the console and
+`odds_quota_log.csv` on every run. A typical full slate is ~15 games, so one
+daily dashboard run costs about **15 credits (~450–500/month)** — comfortably
+inside budget. If remaining credits ever drop below `ODDS_API_MIN_REMAINING`,
+odds fetching is skipped with a clear message instead of burning the reserve.
 
 Locally you can `cp .env.example .env`, fill it in, and export the values
 (e.g. `set -a; source .env; set +a`). In GitHub Actions,

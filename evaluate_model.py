@@ -66,7 +66,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import roc_auc_score, brier_score_loss, log_loss
 
 import build_features as bf
-from structural_model import StructuralModel, pa_table_from_statcast, game_hr_probability
+from structural_model import (StructuralModelV2, infer_game_slots,
+                              pa_table_from_statcast, game_hr_probability,
+                              MAX_LINEUP_SLOT)
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -101,6 +103,10 @@ EBB_PRIOR_GAMES = 10.0
 
 # De-vig approximation for the one-sided Yes price (assumed ~6% margin).
 ONE_SIDED_MARGIN = 1.06
+
+# Betting-sim thresholds: bet only when v2 prob exceeds the de-vig market
+# prob by at least this many probability points (flat 1-unit stakes).
+BET_EDGE_THRESHOLDS = [0.01, 0.02, 0.03, 0.05]
 
 EPS = 1e-6
 
@@ -305,7 +311,16 @@ def main():
 
     # Player-game frame for the whole test window (outcomes + context).
     test_pg_all = build_player_games(holdout_raw)
-    print(f"  player-games in holdout: {len(test_pg_all):,}")
+
+    # Batting-order slot for each test player-game, inferred from the PA
+    # ordering of that game. This stands in for the posted pre-game lineup
+    # (identical information for starters); slots > 9 are mid-game subs
+    # whose slot would NOT be on a posted lineup, so they become unknown.
+    slot_map = infer_game_slots(pa_table_from_statcast(holdout_raw))
+    test_pg_all = test_pg_all.merge(slot_map, on=["game_pk", "batter"], how="left")
+    test_pg_all.loc[test_pg_all["slot"] > MAX_LINEUP_SLOT, "slot"] = np.nan
+    print(f"  player-games in holdout: {len(test_pg_all):,} "
+          f"({test_pg_all['slot'].notna().mean():.0%} with a starting-lineup slot)")
 
     # ── Walk-forward scoring ─────────────────────────────────────────
     bb_frames = []      # batted-ball level predictions
@@ -319,8 +334,10 @@ def main():
         hitter, pitcher, matchup, _ = bf.build_profiles(
             all_pre, batted_pre, use_season_stats=False, verbose=False)
 
-        # Structural model tables from strictly pre-cutoff PAs.
-        struct = StructuralModel(pa_table_from_statcast(all_pre))
+        # Structural model tables from strictly pre-cutoff PAs (v2 tables —
+        # slot PA means and park factors — come from the same pre-cutoff
+        # window; v1 predictions are unchanged by the subclass).
+        struct = StructuralModelV2(pa_table_from_statcast(all_pre))
         ebb, league_bb_pg = expected_bb_table(all_pre, batted_pre)
 
         # Pre-cutoff player-game base rate (league P(HR in game | >=1 PA)).
@@ -360,6 +377,22 @@ def main():
             struct.predict(b, opposing_pitcher=pid, pitcher_hand=hand)
             for b, pid, hand in zip(pg["batter"], pg["opp_starter_id"], pg["opp_starter_hand"])
         ]
+
+        # Ablation ladder: v1 + slots, v1 + parks, v1 + both (= v2).
+        def _score_variant(use_slots, use_parks):
+            return [
+                struct.predict_v2(
+                    b, opposing_pitcher=pid, pitcher_hand=hand,
+                    slot=int(s) if pd.notna(s) else None,
+                    park=park, stand=st,
+                    use_slots=use_slots, use_parks=use_parks)
+                for b, pid, hand, s, park, st in zip(
+                    pg["batter"], pg["opp_starter_id"], pg["opp_starter_hand"],
+                    pg["slot"], pg["home_team"], pg["stand"])
+            ]
+        pg["structural_slots"] = _score_variant(True, False)
+        pg["structural_parks"] = _score_variant(False, True)
+        pg["structural_v2"] = _score_variant(True, True)
         pg["base"] = pg_base_rate
         pg_frames.append(pg)
         print(f"  scored {len(seg_bb):,} batted balls, {len(pg):,} player-games ({time.time()-seg_t:.0f}s)")
@@ -370,10 +403,36 @@ def main():
     # ── Market comparison on overlapping picks ───────────────────────
     picks = pd.read_csv("picks_history.csv", parse_dates=["date"])
     picks = picks.dropna(subset=["book_implied", "batter_id"])
-    picks = picks.groupby(["date", "batter_id"], as_index=False)["book_implied"].mean()
+    # Decimal odds for the betting sim (mean across books when a player
+    # was logged more than once on a date).
+    picks["decimal_odds"] = picks["book_odds"].apply(
+        lambda o: (1 + o / 100.0 if o > 0 else 1 + 100.0 / abs(o)) if pd.notna(o) else np.nan)
+    picks = picks.groupby(["date", "batter_id"], as_index=False).agg(
+        book_implied=("book_implied", "mean"), decimal_odds=("decimal_odds", "mean"))
     picks["book_implied"] = picks["book_implied"] / 100.0
     merged = picks.merge(
         pg_all, left_on=["date", "batter_id"], right_on=["game_date", "batter"], how="inner")
+    merged["devig"] = merged["book_implied"] / ONE_SIDED_MARGIN
+
+    # ── Betting simulation on the picks subset ───────────────────────
+    # Flat 1-unit bet whenever the v2 probability exceeds the de-vig
+    # market probability by >= threshold, settled at the recorded odds.
+    betting_sim = {"description": (
+        "Flat 1u on Yes when structural_v2 prob - devig market prob >= threshold, "
+        "settled at recorded book odds. CAVEAT: n=%d model-selected picks, not a "
+        "random market sample; treat as illustrative only." % len(merged))}
+    bettable = merged.dropna(subset=["decimal_odds"])
+    for thr in BET_EDGE_THRESHOLDS:
+        sel = bettable[bettable["structural_v2"] - bettable["devig"] >= thr]
+        n = len(sel)
+        wins = int(sel["is_hr_game"].sum())
+        pnl = float((sel["is_hr_game"] * (sel["decimal_odds"] - 1.0)
+                     - (1 - sel["is_hr_game"])).sum())
+        betting_sim[f"edge>={thr:.2f}"] = {
+            "bets": n, "wins": wins, "losses": n - wins,
+            "pnl_units": round(pnl, 2),
+            "roi": round(pnl / n, 4) if n else None,
+        }
 
     # ── Metrics ──────────────────────────────────────────────────────
     results = {
@@ -396,11 +455,34 @@ def main():
         },
         "picks_subset (n=%d)" % len(merged): {
             "market_implied_raw": metric_row(merged["is_hr_game"], merged["book_implied"]),
-            "market_implied_devig": metric_row(merged["is_hr_game"], merged["book_implied"] / ONE_SIDED_MARGIN),
+            "market_implied_devig": metric_row(merged["is_hr_game"], merged["devig"]),
             "gbm": metric_row(merged["is_hr_game"], merged["gbm"]),
             "structural": metric_row(merged["is_hr_game"], merged["structural"]),
             "base_rate": metric_row(merged["is_hr_game"], merged["base"]),
         } if len(merged) > 0 else {},
+        "structural_v2": {
+            "config": {
+                "slot_epa": "E[PA] = 0.7 * league PA/game for the batter's slot that game "
+                            "+ 0.3 * trailing regressed PA/game; slot constants from the "
+                            "pre-cutoff window only; subs (slot>9) fall back to v1 E[PA]",
+                "park_factors": "per-park HR/PA by batter hand, shrunk toward 1.0 with "
+                                "2000 pseudo-PA, clipped to [0.80, 1.25], pre-cutoff only",
+            },
+            "player_game_ablation": {
+                "v1_structural": metric_row(pg_all["is_hr_game"], pg_all["structural"]),
+                "v1_plus_slots": metric_row(pg_all["is_hr_game"], pg_all["structural_slots"]),
+                "v1_plus_parks": metric_row(pg_all["is_hr_game"], pg_all["structural_parks"]),
+                "v2_slots_plus_parks": metric_row(pg_all["is_hr_game"], pg_all["structural_v2"]),
+            },
+            "picks_subset_ablation (n=%d)" % len(merged): {
+                "market_implied_devig": metric_row(merged["is_hr_game"], merged["devig"]),
+                "v1_structural": metric_row(merged["is_hr_game"], merged["structural"]),
+                "v1_plus_slots": metric_row(merged["is_hr_game"], merged["structural_slots"]),
+                "v1_plus_parks": metric_row(merged["is_hr_game"], merged["structural_parks"]),
+                "v2_slots_plus_parks": metric_row(merged["is_hr_game"], merged["structural_v2"]),
+            } if len(merged) > 0 else {},
+            "betting_simulation": betting_sim,
+        },
     }
 
     with open("eval_results.json", "w") as f:
@@ -426,7 +508,8 @@ def main():
     ax.legend()
 
     ax = axes[1]
-    for name, col, style in [("GBM", "gbm", "o-"), ("Structural", "structural", "s-")]:
+    for name, col, style in [("GBM", "gbm", "o-"), ("Structural v1", "structural", "s-"),
+                             ("Structural v2 (slots+parks)", "structural_v2", "^-")]:
         frac, mean_pred = calibration_curve(pg_all["is_hr_game"], pg_all[col], n_bins=10, strategy="quantile")
         ax.plot(mean_pred, frac, style, label=name)
     lim = 0.15

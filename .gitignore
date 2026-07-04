@@ -10,6 +10,9 @@ props.csv
 holdout_2026.csv
 holdout_weather.csv
 
+# Local operational log of Odds API credit burn (machine-specific)
+odds_quota_log.csv
+
 # Python
 __pycache__/
 *.pyc

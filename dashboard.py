@@ -122,6 +122,34 @@ EXPECTED_PA_BY_SLOT = {
 }
 DEFAULT_EXPECTED_PA = 4.15
 
+# ── Probability source ─────────────────────────────────────────
+# 'structural_v2' (default): transparent structural model with lineup-slot
+# E[PA] and park factors by handedness. On the 2026 holdout it beat the GBM
+# on every metric (see EVALUATION.md), so it is the default price setter.
+# 'gbm': the legacy GBM + heuristic stack (predict_with_reasons).
+PROB_SOURCE = os.environ.get("HR_PROB_SOURCE", "structural_v2").strip().lower()
+STRUCTURAL_V2_PATH = "structural_v2.pkl"
+STRUCTURAL_V2 = None
+if PROB_SOURCE == "structural_v2":
+    try:
+        from structural_model import StructuralModelV2
+        STRUCTURAL_V2 = StructuralModelV2.load(STRUCTURAL_V2_PATH)
+        print(f"Probability source: structural_v2 ({STRUCTURAL_V2_PATH})")
+    except Exception as _e:
+        print(f"WARNING: could not load {STRUCTURAL_V2_PATH} ({_e}); "
+              f"falling back to the gbm source. Rebuild with: python3 structural_model.py build")
+        PROB_SOURCE = "gbm"
+if PROB_SOURCE != "structural_v2":
+    print("Probability source: gbm (legacy)")
+
+# ── Odds API quota guard ───────────────────────────────────────
+# The Odds API plan has a 20,000 credit/month budget and player-prop
+# endpoints bill ~1 credit per event per market per region. Keep the
+# per-event pulls to ONE region + ONE market, and refuse to dip into the
+# reserve below this floor (override with ODDS_API_MIN_REMAINING).
+ODDS_API_MIN_REMAINING = int(os.environ.get("ODDS_API_MIN_REMAINING", "500"))
+ODDS_QUOTA_LOG = pathlib.Path("odds_quota_log.csv")
+
 PARK_OUTFIELD_BEARINGS = {
     "ARI": 20, "ATL": 35, "BAL": 45, "BOS": 55, "CHC": 35, "CIN": 38,
     "CLE": 35, "COL": 20, "CWS": 32, "DET": 30, "HOU": 42, "KC": 40,
@@ -1968,68 +1996,151 @@ def get_roster(team_id):
         return []
  
 # ── Odds ───────────────────────────────────────────────────────
+def _mlb_games_today():
+    """Number of MLB games scheduled today (ET), from the FREE MLB Stats
+    API — costs zero Odds API credits. Returns None if the check fails
+    (caller should then proceed rather than silently skip a slate)."""
+    today = datetime.now(ET).strftime("%Y-%m-%d")
+    try:
+        data = requests.get(
+            f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={today}",
+            timeout=10,
+        ).json()
+        return int(data.get("totalGames", 0))
+    except Exception as e:
+        print(f"  MLB schedule check failed ({e}) — proceeding with odds fetch.")
+        return None
+
+
+def _read_quota_headers(resp):
+    """(used, remaining) from The Odds API response headers, or Nones."""
+    def _num(h):
+        v = resp.headers.get(h)
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+    return _num("x-requests-used"), _num("x-requests-remaining")
+
+
+def _log_odds_quota(used, remaining, prop_calls, note=""):
+    """Print and persist Odds API credit burn so the 20k/month budget is
+    visible run over run (odds_quota_log.csv, appended)."""
+    print(f"  Odds API quota: used={used if used is not None else '?'} "
+          f"remaining={remaining if remaining is not None else '?'} "
+          f"(prop calls this run: {prop_calls}{'; ' + note if note else ''})")
+    try:
+        new_file = not ODDS_QUOTA_LOG.exists()
+        with open(ODDS_QUOTA_LOG, "a", newline="") as f:
+            w = csv.writer(f)
+            if new_file:
+                w.writerow(["timestamp_et", "requests_used", "requests_remaining",
+                            "prop_calls_this_run", "note"])
+            w.writerow([datetime.now(ET).strftime("%Y-%m-%d %H:%M:%S"),
+                        used, remaining, prop_calls, note])
+    except Exception as e:
+        print(f"  (quota log write failed: {e})")
+
+
 def fetch_odds():
     """Fetch live 0.5+ HR props, preferring DraftKings when available.
 
-    Strategy:
-      1. Skip any game whose commence_time is already in the past (no live/stale odds)
-      2. Pull props across US regions to maximize bookmaker coverage
-      3. Keep one 0.5+ HR price per player per book
-      4. Resolve each player to DraftKings if posted, otherwise the highest-priority
-         live sportsbook in BOOK_PRIORITY.
+    Credit frugality (20,000 credits/month plan; per-event prop calls are
+    the expensive endpoint at ~1 credit x regions x markets each):
+      1. FREE MLB Stats API schedule check first — no-game day means no
+         Odds API calls at all.
+      2. ONE region (us), ONE market (batter_home_runs), and only events
+         that commence today (ET) and are still pregame.
+      3. x-requests-used / x-requests-remaining logged every run (console
+         + odds_quota_log.csv).
+      4. If remaining credits fall below ODDS_API_MIN_REMAINING, skip or
+         stop instead of burning the reserve.
+
+    Then: keep one 0.5+ HR price per player per book and resolve each
+    player to DraftKings if posted, otherwise the highest-priority live
+    book in BOOK_PRIORITY.
     """
     print("Fetching HR odds from live sportsbooks...")
     now_utc = datetime.now(timezone.utc)
+    today_et = datetime.now(ET).date()
     raw_all  = {}   # {ckey: {book_key: {"player", "book_odds", "book_implied", "book"}}}
     seen_books = set()
     books_with_hr_market = set()
     draftkings_seen = False
+    quota_used = quota_remaining = None
+    prop_calls = 0
+
+    # Free pre-check: skip the paid API entirely on no-game days.
+    n_games = _mlb_games_today()
+    if n_games == 0:
+        print("  No MLB games today (MLB Stats API) — skipping odds fetch, 0 credits used.")
+        return {}
 
     try:
         ev_resp = requests.get(
             f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events"
             f"?apiKey={ODDS_API_KEY}", timeout=15
         )
+        quota_used, quota_remaining = _read_quota_headers(ev_resp)
         if ev_resp.status_code != 200:
             print(f"  Events error: {ev_resp.status_code}")
+            _log_odds_quota(quota_used, quota_remaining, 0, "events call failed")
             return {}
- 
+
+        if quota_remaining is not None and quota_remaining < ODDS_API_MIN_REMAINING:
+            print(f"  Only {quota_remaining} Odds API credits left "
+                  f"(< ODDS_API_MIN_REMAINING={ODDS_API_MIN_REMAINING}) — "
+                  f"skipping prop pulls to protect the reserve.")
+            _log_odds_quota(quota_used, quota_remaining, 0, "below reserve floor, skipped")
+            return {}
+
         events = ev_resp.json()
         if not isinstance(events, list):
             return {}
- 
-        # ── Filter to pregame events only ─────────────────────
+
+        # ── Filter to TODAY'S pregame events only (per-event prop calls
+        # cost credits; tomorrow's slate can wait until tomorrow) ──────
         pregame = []
         for ev in events:
             ct = ev.get("commence_time", "")
             try:
                 commence_dt = datetime.fromisoformat(ct.replace("Z", "+00:00"))
+                if commence_dt.astimezone(ET).date() != today_et:
+                    continue
                 # Allow up to 30 min after scheduled start (slight delay tolerance)
                 if commence_dt > now_utc - timedelta(minutes=30):
                     pregame.append(ev)
             except Exception:
                 pregame.append(ev)  # unknown time — include anyway
-        print(f"  {len(events)} total games, {len(pregame)} pregame")
- 
+        print(f"  {len(events)} events listed, {len(pregame)} pregame today (ET)")
+
         for i, event in enumerate(pregame):
             eid = event.get("id", "")
             if not eid:
                 continue
             if i > 0:
                 time.sleep(1.2)
- 
+            if quota_remaining is not None and quota_remaining < ODDS_API_MIN_REMAINING:
+                print(f"  Stopping at {prop_calls} prop calls — remaining credits "
+                      f"({quota_remaining}) hit the reserve floor.")
+                break
+
             pr = requests.get(
                 f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events/{eid}/odds"
-                f"?apiKey={ODDS_API_KEY}&regions=us,us2&markets=batter_home_runs"
+                f"?apiKey={ODDS_API_KEY}&regions=us&markets=batter_home_runs"
                 f"&oddsFormat=american", timeout=15
             )
+            prop_calls += 1
+            u, r = _read_quota_headers(pr)
+            if u is not None:
+                quota_used = u
+            if r is not None:
+                quota_remaining = r
             if pr.status_code == 429:
                 print(f"  Rate limited — {len(raw_all)} players so far.")
                 break
             if pr.status_code != 200:
                 continue
-            if i == 0:
-                print(f"  Requests remaining: {pr.headers.get('x-requests-remaining','?')}")
 
             for bm in pr.json().get("bookmakers", []):
                 book_key = bm.get("key", "")
@@ -2076,6 +2187,8 @@ def fetch_odds():
                             pass
     except Exception as e:
         print(f"  Odds error: {e}")
+
+    _log_odds_quota(quota_used, quota_remaining, prop_calls)
 
     # ── Resolve one line per player: DraftKings first, then best live fallback ──
     results = {}
@@ -2283,11 +2396,25 @@ def build_dashboard():
                 if in_model and opp_pitcher != "TBD":
                     try:
                         model_prob, reasons = predict_with_reasons(bid, opp_pitcher, home, opp_hand, opp_team)
-                        if model_prob is not None and batting_order:
+                        # Slot multiplier only applies to the legacy price:
+                        # the structural v2 price below already carries the
+                        # lineup slot inside E[PA].
+                        if model_prob is not None and batting_order and STRUCTURAL_V2 is None:
                             model_prob *= expected_pa_multiplier(batting_order)
                         players_scored += 1
                     except Exception as e:
                         print(f"  Error {name}: {e}")
+                    if STRUCTURAL_V2 is not None:
+                        # structural_v2 sets the price; predict_with_reasons
+                        # above is kept only for its display reasons.
+                        try:
+                            slot = batting_order if 1 <= batting_order <= 9 else None
+                            model_prob = 100.0 * STRUCTURAL_V2.predict_v2(
+                                bid,
+                                opposing_pitcher=STRUCTURAL_V2.lookup_pitcher_id(opp_pitcher),
+                                pitcher_hand=opp_hand, slot=slot, park=home)
+                        except Exception as e:
+                            print(f"  Structural v2 error {name}: {e}")
  
                 od           = match_odds(name)
                 book_odds    = od["book_odds"]    if od else None
