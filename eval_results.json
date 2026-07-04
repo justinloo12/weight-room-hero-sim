@@ -1,0 +1,110 @@
+{
+  "config": {
+    "train_window": "2025-03-27..2026-03-22",
+    "test_window": "2026-03-23..2026-07-02",
+    "segments": [
+      "2026-03-23..2026-05-01",
+      "2026-05-01..2026-06-01",
+      "2026-06-01..2026-07-03"
+    ],
+    "n_features": 85,
+    "excluded_features": "p_xera_gap term of p_hr_vulnerability_score (season-level stats would leak future games)",
+    "devig_assumption": "one-sided margin 1.06"
+  },
+  "batted_ball_level": {
+    "gbm": {
+      "n": 127636,
+      "positives": 3045,
+      "auc": 0.4559,
+      "brier": 0.02779,
+      "log_loss": 0.22997,
+      "mean_pred": 0.0095,
+      "actual_rate": 0.0239
+    },
+    "base_rate": {
+      "n": 127636,
+      "positives": 3045,
+      "auc": 0.5,
+      "brier": 0.02329,
+      "log_loss": 0.11269,
+      "mean_pred": 0.0241,
+      "actual_rate": 0.0239
+    }
+  },
+  "player_game_level": {
+    "gbm": {
+      "n": 27258,
+      "positives": 2869,
+      "auc": 0.5329,
+      "brier": 0.1181,
+      "log_loss": 0.83276,
+      "mean_pred": 0.0262,
+      "actual_rate": 0.1053
+    },
+    "structural": {
+      "n": 27258,
+      "positives": 2869,
+      "auc": 0.6124,
+      "brier": 0.09286,
+      "log_loss": 0.32961,
+      "mean_pred": 0.11,
+      "actual_rate": 0.1053
+    },
+    "base_rate": {
+      "n": 27258,
+      "positives": 2869,
+      "auc": 0.4745,
+      "brier": 0.09419,
+      "log_loss": 0.33655,
+      "mean_pred": 0.1048,
+      "actual_rate": 0.1053
+    }
+  },
+  "picks_subset (n=88)": {
+    "market_implied_raw": {
+      "n": 88,
+      "positives": 14,
+      "auc": 0.6327,
+      "brier": 0.13243,
+      "log_loss": 0.42698,
+      "mean_pred": 0.1963,
+      "actual_rate": 0.1591
+    },
+    "market_implied_devig": {
+      "n": 88,
+      "positives": 14,
+      "auc": 0.6327,
+      "brier": 0.13159,
+      "log_loss": 0.42454,
+      "mean_pred": 0.1852,
+      "actual_rate": 0.1591
+    },
+    "gbm": {
+      "n": 88,
+      "positives": 14,
+      "auc": 0.3716,
+      "brier": 0.25021,
+      "log_loss": 1.58731,
+      "mean_pred": 0.1149,
+      "actual_rate": 0.1591
+    },
+    "structural": {
+      "n": 88,
+      "positives": 14,
+      "auc": 0.4932,
+      "brier": 0.14053,
+      "log_loss": 0.45374,
+      "mean_pred": 0.1879,
+      "actual_rate": 0.1591
+    },
+    "base_rate": {
+      "n": 88,
+      "positives": 14,
+      "auc": 0.5,
+      "brier": 0.13663,
+      "log_loss": 0.45141,
+      "mean_pred": 0.1058,
+      "actual_rate": 0.1591
+    }
+  }
+}

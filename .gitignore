@@ -6,6 +6,10 @@
 homerun_data_*.csv
 props.csv
 
+# Holdout evaluation inputs (regenerate: see evaluate_model.py docstring)
+holdout_2026.csv
+holdout_weather.csv
+
 # Python
 __pycache__/
 *.pyc

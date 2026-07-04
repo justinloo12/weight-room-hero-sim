@@ -9,6 +9,16 @@ goes deep.
 > **This project is for educational purposes only.** See the
 > [disclaimer](#disclaimer) at the bottom.
 
+## Model evaluation
+
+See **[EVALUATION.md](EVALUATION.md)** for a strict time-based holdout
+evaluation. Honest summary: the GBM underperforms the naive base rate on
+held-out data; a transparent structural formula
+(`P(HR) = 1 − (1 − p_PA)^E[PA]` with empirical-Bayes shrinkage, in
+`structural_model.py`) beats it on every metric; and neither model
+out-predicts the de-vigged market price yet. The evaluation is reproducible
+via `evaluate_model.py`.
+
 ## Architecture
 
 ```
