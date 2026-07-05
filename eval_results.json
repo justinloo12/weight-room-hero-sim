@@ -228,5 +228,107 @@
         "roi": -1.0
       }
     }
+  },
+  "gbm_v3": {
+    "config": {
+      "unit": "player-game (one row per batter-game, label = homered y/n)",
+      "features": "85 profile features (leakage-safe, use_season_stats=False) + 7 structural inputs incl. structural v2 log-odds",
+      "excluded": "p_xera_gap / season-level xERA aggregates (not point-in-time)",
+      "train_segments": [
+        "2025-05-01..2025-06-15",
+        "2025-06-15..2025-08-01",
+        "2025-08-01..2025-09-15",
+        "2025-09-15..2025-12-01",
+        "2026-03-01..2026-03-23"
+      ],
+      "validation_slice": "last two train segments (2025-09-15..2025-12-01 + 2026-03-01..2026-03-22), time-ordered",
+      "model": "HistGradientBoostingClassifier {'max_iter': 300, 'learning_rate': 0.05, 'max_leaf_nodes': 15, 'min_samples_leaf': 100}",
+      "calibration": "isotonic (chosen by validation log-loss 0.29583 vs 0.29762)"
+    },
+    "validation": {
+      "n": 7532,
+      "positives": 706,
+      "raw_log_loss": 0.29872,
+      "calibrated_log_loss": {
+        "isotonic": 0.29583,
+        "sigmoid": 0.29762
+      }
+    },
+    "player_game_level": {
+      "gbm_v3": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6344,
+        "brier": 0.09222,
+        "log_loss": 0.32611,
+        "mean_pred": 0.1044,
+        "actual_rate": 0.1053
+      },
+      "gbm_v3_sigmoid_alt": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6353,
+        "brier": 0.0922,
+        "log_loss": 0.32554,
+        "mean_pred": 0.1037,
+        "actual_rate": 0.1053
+      },
+      "gbm_v3_raw_uncalibrated": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6353,
+        "brier": 0.09257,
+        "log_loss": 0.32698,
+        "mean_pred": 0.1068,
+        "actual_rate": 0.1053
+      },
+      "structural_v2_recomputed": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.6173,
+        "brier": 0.09286,
+        "log_loss": 0.3292,
+        "mean_pred": 0.1145,
+        "actual_rate": 0.1053
+      },
+      "base_rate": {
+        "n": 27258,
+        "positives": 2869,
+        "auc": 0.4745,
+        "brier": 0.09419,
+        "log_loss": 0.33655,
+        "mean_pred": 0.1048,
+        "actual_rate": 0.1053
+      }
+    },
+    "picks_subset (n=88)": {
+      "market_implied_devig": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.6327,
+        "brier": 0.13159,
+        "log_loss": 0.42454,
+        "mean_pred": 0.1852,
+        "actual_rate": 0.1591
+      },
+      "gbm_v3": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.6211,
+        "brier": 0.1314,
+        "log_loss": 0.42676,
+        "mean_pred": 0.1587,
+        "actual_rate": 0.1591
+      },
+      "structural_v2": {
+        "n": 88,
+        "positives": 14,
+        "auc": 0.5212,
+        "brier": 0.14097,
+        "log_loss": 0.45198,
+        "mean_pred": 0.1988,
+        "actual_rate": 0.1591
+      }
+    }
   }
 }
