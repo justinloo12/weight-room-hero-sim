@@ -1,0 +1,50 @@
+name: Daily Predictions & Scoreboard
+
+# Pre-registered forecasting scorecard (see PROTOCOL.json).
+# Free MLB Stats API + Open-Meteo only — the Odds API is never called
+# by this workflow (0 credits used).
+
+on:
+  schedule:
+    - cron: "0 16 * * *"   # predict: ~noon ET, early lineups
+    - cron: "0 22 * * *"   # predict: ~6pm ET, catches late-posted lineups
+    - cron: "0 10 * * *"   # grade yesterday + rebuild SCOREBOARD.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: predictions-log
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # Pinned to the versions the frozen artifacts were pickled with.
+      - run: pip install "pandas==3.0.1" "numpy==2.4.3" "scikit-learn==1.8.0" requests
+
+      - name: Predict today (16:00/22:00 UTC crons + manual dispatch)
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule != '0 10 * * *'
+        run: python predict_today.py
+
+      - name: Grade + scoreboard (10:00 UTC cron + manual dispatch)
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 10 * * *'
+        run: python grade_predictions.py
+
+      - name: Commit log + scoreboard
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add predictions_log.csv SCOREBOARD.md
+          git diff --staged --quiet || git commit -m "scorecard update $(date -u '+%Y-%m-%d %H:%M')"
+          git pull --rebase origin main
+          git push

@@ -1,0 +1,34 @@
+{
+  "registered": "2026-07-04",
+  "title": "Pre-registered live forecasting protocol — MLB home-run scorecard",
+  "purpose": "Test, on genuinely out-of-sample future games, whether the frozen holdout-winning model (GBM v3) retains skill over a constant base-rate predictor. Forecasting scorecard only: no odds are fetched, no bets are placed, no stakes exist.",
+  "model": {
+    "id": "gbm_v3",
+    "description": "Player-game HistGradientBoosting (max_iter=300, lr=0.05, max_leaf_nodes=15, min_samples_leaf=100) with isotonic calibration fit on a time-ordered validation slice; 85 leakage-safe profile features + 7 structural inputs. Holdout (2026-03-23..2026-07-02): Brier 0.09222, AUC 0.6344 vs structural v2 0.09286/0.6173 and base rate 0.09419. See EVALUATION.md.",
+    "frozen": true,
+    "artifacts": {
+      "hr_model_v3.pkl": "sha256:19f0e5668d6c820e9e45c29abbadf5ca031a02888827a62abf9ffb6a844d4317",
+      "scoring_pack_v3.pkl.gz": "sha256:73ac5ddd7dcf6e762ee13f0f5bb391efe1522250c1c6d15720a32a22aec22993",
+      "structural_v2.pkl": "sha256:1c284e0729a3c6aaabd6e7abae60f1e711f5dba6effad272dcc9645e0ff9c534"
+    },
+    "feature_data_frozen_through": "2026-07-02",
+    "note": "Profile and structural tables are frozen at registration and will grow stale over the scoring window; that staleness is part of what the scorecard measures."
+  },
+  "prediction_rule": "Each day, every batter (slots 1-9) in a POSTED starting lineup of an MLB game still in Preview state at prediction time receives one P(>=1 HR) forecast. Games without posted lineups are skipped and picked up by a later same-day run. The first logged prediction for a (date, batter) is final; re-runs may only append new rows (enforced by predict_today.append_predictions).",
+  "data_sources": "Free MLB Stats API (statsapi.mlb.com) for schedule, probable pitchers, lineups and grading; free Open-Meteo forecast for game-time weather. The Odds API is never called by this pipeline (0 credits).",
+  "cadence": {
+    "predict": "Daily at 16:00 UTC and 22:00 UTC (GitHub Actions, .github/workflows/predictions.yml), plus manual dispatch",
+    "grade": "Daily at 10:00 UTC, grading all past ungraded rows and regenerating SCOREBOARD.md"
+  },
+  "grading_rule": "From the batter's MLB Stats API game log: hr=1 if he homered on the prediction date, hr=0 if he appeared without a HR, hr=dnp (excluded from scoring) if he made no appearance (scratched/postponed/benched). Logged probabilities are never edited.",
+  "metrics": {
+    "primary": "Brier score of logged probabilities vs a constant base-rate predictor of 0.1053 (league P(>=1 HR | >=1 PA) on the 2026-03-23..2026-07-02 holdout, frozen here).",
+    "secondary": [
+      "Log loss vs the same constant",
+      "Calibration table by predicted-probability bin (bins fixed in grade_predictions.py: 0-5, 5-8, 8-11, 11-15, 15-20, 20+ percent)"
+    ]
+  },
+  "success_criterion": "Stated up front, before any live results: after at least 1,000 graded (non-dnp) predictions, gbm_v3's running Brier score is lower than the constant base-rate Brier (skill score 1 - Brier_model/Brier_base > 0). Falling short means the holdout edge did not survive contact with the future, and that result will be reported as plainly as a win.",
+  "amendments_policy": "This protocol may be amended ONLY by appending a dated note to amendments_log below. The frozen artifacts, prediction rule, grading rule, benchmark constant, and success criterion above are never edited in place.",
+  "amendments_log": []
+}
